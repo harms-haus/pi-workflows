@@ -15,7 +15,7 @@ A generic, configurable pi extension for defining and running multiple named wor
 ## Installation
 
 ```bash
-pi install /path/to/pi-workflows -l
+pi install git:github.com/harms-haus/pi-workflows
 ```
 
 ## Configuration

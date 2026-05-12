@@ -136,6 +136,7 @@ export function registerCancelWorkflowCommand(
 
       // Clear the widget
       ctx.ui.setWidget("workflow", undefined);
+      ctx.ui.setStatus("workflow", undefined);
 
       // Send cancellation notification immediately (bypass agent_end hook)
       const msg = `❌ **Workflow Cancelled**\n\n**Task:** ${state.taskDescription}\n**Task ID:** ${state.taskId}`;
