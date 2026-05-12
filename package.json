@@ -1,0 +1,11 @@
+{
+  "name": "pi-workflows",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "pi": {
+    "extensions": ["./src/index.ts"]
+  },
+  "keywords": ["pi-package", "workflow"],
+  "license": "MIT"
+}

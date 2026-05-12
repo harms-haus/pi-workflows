@@ -1,0 +1,106 @@
+import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import type { WorkflowState, SetState, ReloadDefinitions, WorkflowDefinition } from "./types";
+import { createInitialState, persistState, isActive, resolveActive } from "./state";
+import { loadWorkflows, findWorkflowByCommandName, resolveTemplate } from "./config";
+
+/**
+ * Register the /workflow command.
+ * Usage: /workflow {commandName} {description}
+ */
+export function registerWorkflowCommand(
+  pi: ExtensionAPI,
+  getState: () => WorkflowState | null,
+  reloadDefinitions: ReloadDefinitions,
+  setState: SetState,
+): void {
+  pi.registerCommand("workflow", {
+    description: "Start a configured workflow. Usage: /workflow {name} {description}",
+    async getArgumentCompletions(prefix: string) {
+      const workflows = await loadWorkflows();
+      const names = Object.values(workflows).map((w) => w.commandName);
+      const filtered = names.filter((n) => n.startsWith(prefix));
+      return filtered.length > 0 ? filtered.map((n) => ({ value: n, label: n })) : null;
+    },
+    handler: async (args, ctx) => {
+      // Parse: split on first whitespace to get commandName and description
+      const parts = args?.trim().match(/^(\S+)\s*(.*)/s);
+      if (!parts) {
+        // No args — show available workflows
+        const workflows = await loadWorkflows(ctx.cwd);
+        const entries = Object.entries(workflows).map(
+          ([key, def]) => ` ${def.commandName} — ${def.name}`,
+        );
+        ctx.ui.notify(
+          "Usage: /workflow {name} {description}\n\nAvailable workflows:\n" + entries.join("\n"),
+          "info",
+        );
+        return;
+      }
+
+      const [, commandName, description] = parts;
+      if (!description || description.trim() === "") {
+        ctx.ui.notify(`Usage: /workflow ${commandName} {description}`, "warning");
+        return;
+      }
+
+      // Reload definitions to get latest
+      const definitions = await reloadDefinitions();
+
+      // Find the workflow
+      const match = findWorkflowByCommandName(definitions, commandName);
+      if (!match) {
+        const available = Object.values(definitions)
+          .map((d) => d.commandName)
+          .join(", ");
+        ctx.ui.notify(
+          `Unknown workflow: "${commandName}". Available: ${available || "(none)"}`,
+          "error",
+        );
+        return;
+      }
+
+      const [workflowKey, definition] = match;
+      const state = getState();
+
+      // Check for existing active workflow
+      if (isActive(state)) {
+        const active = resolveActive(state, definitions);
+        const phaseName = active ? active.currentPhase.name : "unknown";
+        const existingDesc = state?.taskDescription ?? "unknown";
+        const ok = await ctx.ui.confirm(
+          "Workflow already active",
+          `Phase: ${phaseName}\nTask: ${existingDesc}\n\nStart a new one?`,
+        );
+        if (!ok) return;
+      }
+
+      // Create new state
+      const newState = createInitialState(workflowKey, description.trim());
+      setState(newState);
+      persistState(pi, newState);
+
+      // Update status
+      ctx.ui.setStatus("workflow", undefined); // Will be set by turn_end hook after first turn
+
+      // Set session name
+      const prefix = definition.sessionNamePrefix ?? "Workflow: ";
+      const maxLen = definition.sessionNameMaxLength ?? 50;
+      pi.setSessionName(
+        `${prefix}${description.trim().slice(0, maxLen)}${description.trim().length > maxLen ? "…" : ""}`,
+      );
+
+      // Resolve and send initial message
+      const firstPhase = definition.phases[0];
+      const initialMessage = resolveTemplate(definition.initialMessage, {
+        workflowName: definition.name,
+        workflowKey,
+        description: description.trim(),
+        firstPhaseId: firstPhase.id,
+        firstPhaseName: firstPhase.name,
+        firstPhaseEmoji: firstPhase.emoji,
+        firstPhaseProfiles: firstPhase.availableProfiles?.join(", ") ?? "(none)",
+      });
+      pi.sendUserMessage(initialMessage);
+    },
+  });
+}
