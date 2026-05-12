@@ -4,7 +4,7 @@ import { loadWorkflows } from "./config";
 import { persistState, reconstructState } from "./state";
 import { updateStatus, handleToolCall, handleBeforeAgentStart, handleAgentEnd } from "./hooks";
 import { registerWorkflowTool } from "./tool";
-import { registerWorkflowCommand } from "./command";
+import { registerWorkflowCommand, registerCancelWorkflowCommand } from "./command";
 import { registerRenderers } from "./renderers";
 
 export default function (pi: ExtensionAPI): void {
@@ -59,5 +59,6 @@ export default function (pi: ExtensionAPI): void {
 
   registerWorkflowTool(pi, getState, getDefinitions, setState);
   registerWorkflowCommand(pi, getState, reloadDefinitions, setState);
+  registerCancelWorkflowCommand(pi, getState, setState);
   registerRenderers(pi);
 }

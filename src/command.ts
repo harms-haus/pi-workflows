@@ -104,3 +104,50 @@ export function registerWorkflowCommand(
     },
   });
 }
+
+/**
+ * Register the /cancel-workflow command.
+ * Immediately jumps the active workflow to DONE, bypassing the not-done reminder loop.
+ */
+export function registerCancelWorkflowCommand(
+  pi: ExtensionAPI,
+  getState: () => WorkflowState | null,
+  setState: (s: WorkflowState | null) => void,
+): void {
+  pi.registerCommand("cancel-workflow", {
+    description: "Cancel the active workflow and jump to DONE. Bypasses the not-done reminder loop.",
+    handler: async (_args, ctx) => {
+      const state = getState();
+      if (!state || !state.active) {
+        ctx.ui.notify("No active workflow to cancel.", "info");
+        return;
+      }
+
+      // Jump straight to DONE state
+      const doneState: WorkflowState = {
+        ...state,
+        active: false,
+        cancelled: true,
+        completionNotified: false,
+      };
+
+      // Persist so session resume knows it was cancelled
+      persistState(pi, doneState);
+
+      // Clear the widget
+      ctx.ui.setWidget("workflow", undefined);
+
+      // Send cancellation notification immediately (bypass agent_end hook)
+      const msg = `❌ **Workflow Cancelled**\n\n**Task:** ${state.taskDescription}\n**Task ID:** ${state.taskId}`;
+      pi.sendMessage(
+        { customType: "workflow:complete", content: msg, display: true },
+        { triggerTurn: false },
+      );
+
+      // Unload immediately so agent_end hook sees null state and does nothing
+      setState(null);
+
+      ctx.ui.notify("Workflow cancelled.", "info");
+    },
+  });
+}

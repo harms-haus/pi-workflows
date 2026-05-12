@@ -6,23 +6,24 @@ import { resolveTemplate, getBlockedTools, getWhitelist } from "./config";
 
 // ── Status Bar ──
 export function updateStatus(
-  ctx: { ui: { setStatus: (key: string, text: string | undefined) => void } },
+  ctx: { ui: { setWidget: (key: string, lines: string[] | undefined) => void } },
   state: WorkflowState | null,
   definitions: Record<string, WorkflowDefinition>,
 ): void {
   if (!isActive(state)) {
-    ctx.ui.setStatus("workflow", undefined);
+    ctx.ui.setWidget("workflow", undefined);
     return;
   }
   const active = resolveActive(state, definitions);
   if (!active) {
-    ctx.ui.setStatus("workflow", undefined);
+    ctx.ui.setWidget("workflow", undefined);
     return;
   }
   const phase = active.currentPhase;
   const total = active.definition.phases.length;
   const current = state.currentPhaseIndex + 1;
-  ctx.ui.setStatus("workflow", `${phase.emoji} ${phase.name} [${current}/${total}]`);
+  const name = active.definition.name;
+  ctx.ui.setWidget("workflow", [`${name} — ${phase.emoji} ${phase.name} [${current}/${total}]`]);
 }
 
 // ── tool_call Hook ──
@@ -97,7 +98,7 @@ export function handleAgentEnd(
           { triggerTurn: false },
         );
       }
-      ctx.ui.setStatus("workflow", undefined);
+      ctx.ui.setWidget("workflow", undefined);
       return { unload: true, persist: false };
     }
     // Normal completion
@@ -113,7 +114,7 @@ export function handleAgentEnd(
       );
     }
     state.completionNotified = true;
-    ctx.ui.setStatus("workflow", undefined);
+    ctx.ui.setWidget("workflow", undefined);
     return { unload: true, persist: true };
   }
   // Case B: Workflow is still active (agent tried to stop mid-workflow)

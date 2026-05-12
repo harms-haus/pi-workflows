@@ -10,7 +10,7 @@ A generic, configurable pi extension for defining and running multiple named wor
 - **Tool Enforcement** — Per-phase tool blocking via blacklist or whitelist
 - **Agent Completion Blocking** — The agent cannot finish until the workflow reaches DONE
 - **State Persistence** — Survives session restarts via `pi.appendEntry`
-- **Status Bar** — Footer shows current phase with progress
+- **Powerline Widget** — Shows "{workflow name} — {emoji} {phase name} [current/total}]" during active workflow
 
 ## Installation
 
@@ -115,6 +115,11 @@ The `workflow_step` tool is always allowed regardless of configuration.
 
 ```
 /workflow rpir Add user authentication with JWT tokens
+```
+
+Cancel the active workflow (bypasses the not-done reminder loop):
+```
+/cancel-workflow
 ```
 
 ### Tool: `workflow_step`
