@@ -1,31 +1,12 @@
-import { readFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { readdirSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
-import type { WorkflowDefinition, WorkflowSettings, PhaseDefinition, } from "./types";
+import { parse as yamlParse } from "yaml";
+import { parseFrontmatter } from "@earendil-works/pi-coding-agent";
+import type { WorkflowDefinition, PhaseDefinition, PhaseToolConfig } from "./types";
 
 // ── Constants ──
 const VALID_COMMAND_NAME_RE = /^[a-zA-Z0-9_-]+$/;
-
-// ── Settings File Paths ──
-function getGlobalSettingsPath(): string {
-  const agentDir = process.env.PI_CODING_AGENT_DIR ?? join(homedir(), ".pi", "agent");
-  return join(agentDir, "settings.json");
-}
-
-function getProjectSettingsPath(cwd: string): string {
-  return join(cwd, ".pi", "settings.json");
-}
-
-async function readSettingsFile(filePath: string): Promise<Record<string, unknown>> {
-  if (!existsSync(filePath)) return {};
-  try {
-    const content = await readFile(filePath, "utf8");
-    return JSON.parse(content);
-  } catch {
-    return {};
-  }
-}
 
 // ── Template Resolution ──
 /**
@@ -119,26 +100,182 @@ export function findWorkflowByCommandName(
   return null;
 }
 
+// ── Loading from Directory ──
+
+/**
+ * Load a single workflow from a directory containing workflow.yaml and phase .md files.
+ * Returns null if the directory is not a valid workflow directory.
+ */
+function loadWorkflowFromDir(dirPath: string): WorkflowDefinition | null {
+  const yamlPath = join(dirPath, "workflow.yaml");
+  if (!existsSync(yamlPath)) return null;
+
+  try {
+    const yamlContent = readFileSync(yamlPath, "utf-8");
+    const parsed = yamlParse(yamlContent);
+
+    if (!parsed || typeof parsed !== "object") {
+      console.warn(`[pi-workflows] Invalid workflow.yaml in ${dirPath}: not a valid YAML object`);
+      return null;
+    }
+
+    // Extract required fields
+    if (typeof parsed.name !== "string" || !parsed.name) {
+      console.warn(`[pi-workflows] Missing or invalid "name" in ${yamlPath}`);
+      return null;
+    }
+    if (typeof parsed.commandName !== "string" || !parsed.commandName) {
+      console.warn(`[pi-workflows] Missing or invalid "commandName" in ${yamlPath}`);
+      return null;
+    }
+    if (typeof parsed.initialMessage !== "string" || !parsed.initialMessage) {
+      console.warn(`[pi-workflows] Missing or invalid "initialMessage" in ${yamlPath}`);
+      return null;
+    }
+    if (!Array.isArray(parsed.phases) || parsed.phases.length < 1) {
+      console.warn(`[pi-workflows] Missing or invalid "phases" array in ${yamlPath}`);
+      return null;
+    }
+
+    const workflow: WorkflowDefinition = {
+      name: parsed.name,
+      commandName: parsed.commandName,
+      initialMessage: parsed.initialMessage,
+      phases: [],
+    };
+
+    // Extract optional string fields
+    if (typeof parsed.sessionNamePrefix === "string") workflow.sessionNamePrefix = parsed.sessionNamePrefix;
+    if (typeof parsed.sessionNameMaxLength === "number") workflow.sessionNameMaxLength = parsed.sessionNameMaxLength;
+    if (typeof parsed.roleInstruction === "string") workflow.roleInstruction = parsed.roleInstruction;
+    if (typeof parsed.advanceReminder === "string") workflow.advanceReminder = parsed.advanceReminder;
+    if (typeof parsed.blockReasonTemplate === "string") workflow.blockReasonTemplate = parsed.blockReasonTemplate;
+    if (typeof parsed.completionMessage === "string") workflow.completionMessage = parsed.completionMessage;
+    if (typeof parsed.notDoneReminder === "string") workflow.notDoneReminder = parsed.notDoneReminder;
+
+    // Load each phase from its .md file
+    for (const phaseFile of parsed.phases) {
+      if (typeof phaseFile !== "string") {
+        console.warn(`[pi-workflows] Invalid phase filename in ${yamlPath}: expected string, got ${typeof phaseFile}`);
+        return null;
+      }
+
+      const phasePath = join(dirPath, phaseFile);
+      try {
+        const phaseContent = readFileSync(phasePath, "utf-8");
+        const { frontmatter, body } = parseFrontmatter<Record<string, unknown>>(phaseContent);
+
+        if (typeof frontmatter.id !== "string" || !frontmatter.id) {
+          console.warn(`[pi-workflows] Missing or invalid "id" in ${phasePath}`);
+          return null;
+        }
+        if (typeof frontmatter.name !== "string" || !frontmatter.name) {
+          console.warn(`[pi-workflows] Missing or invalid "name" in ${phasePath}`);
+          return null;
+        }
+        if (typeof frontmatter.emoji !== "string" || !frontmatter.emoji) {
+          console.warn(`[pi-workflows] Missing or invalid "emoji" in ${phasePath}`);
+          return null;
+        }
+
+        const phase: PhaseDefinition = {
+          id: frontmatter.id,
+          name: frontmatter.name,
+          emoji: frontmatter.emoji,
+          instructions: body.trim(),
+        };
+
+        // Extract optional tools config
+        if (frontmatter.tools && typeof frontmatter.tools === "object" && !Array.isArray(frontmatter.tools)) {
+          const toolsConfig = frontmatter.tools as Record<string, unknown>;
+          const tools: PhaseToolConfig = {};
+
+          if (Array.isArray(toolsConfig.blacklist)) {
+            tools.blacklist = toolsConfig.blacklist.map(String);
+          }
+          if (Array.isArray(toolsConfig.whitelist)) {
+            tools.whitelist = toolsConfig.whitelist.map(String);
+          }
+
+          if (tools.blacklist || tools.whitelist) {
+            phase.tools = tools;
+          }
+        }
+
+        // Extract optional availableProfiles
+        if (Array.isArray(frontmatter.availableProfiles)) {
+          phase.availableProfiles = frontmatter.availableProfiles.map(String);
+        }
+
+        workflow.phases.push(phase);
+      } catch (phaseErr) {
+        console.warn(
+          `[pi-workflows] Failed to load phase file ${phasePath}: ${phaseErr instanceof Error ? phaseErr.message : phaseErr}`,
+        );
+        return null;
+      }
+    }
+
+    return workflow;
+  } catch (err) {
+    console.warn(
+      `[pi-workflows] Failed to load workflow from ${dirPath}: ${err instanceof Error ? err.message : err}`,
+    );
+    return null;
+  }
+}
+
+/**
+ * Scan a parent directory for workflow subdirectories and load each one.
+ * Returns a record keyed by directory name.
+ */
+function loadWorkflowsFromDir(parentDir: string): Record<string, WorkflowDefinition> {
+  const definitions: Record<string, WorkflowDefinition> = {};
+
+  if (!existsSync(parentDir)) return definitions;
+
+  try {
+    const entries = readdirSync(parentDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+
+      try {
+        const workflow = loadWorkflowFromDir(join(parentDir, entry.name));
+        if (workflow) {
+          definitions[entry.name] = workflow;
+        }
+      } catch (err) {
+        console.warn(
+          `[pi-workflows] Error loading workflow from ${entry.name}: ${err instanceof Error ? err.message : err}`,
+        );
+      }
+    }
+  } catch (err) {
+    console.warn(
+      `[pi-workflows] Failed to read workflow directory ${parentDir}: ${err instanceof Error ? err.message : err}`,
+    );
+  }
+
+  return definitions;
+}
+
 // ── Loading ──
 /**
- * Load workflow definitions from global and project-local settings.json.
+ * Load workflow definitions from global and project-local workflow directories.
  * Project definitions override global definitions with the same key.
  * Invalid definitions are excluded with a console.warn.
  */
 export async function loadWorkflows(
   cwd?: string,
 ): Promise<Record<string, WorkflowDefinition>> {
-  // Load global settings
-  const globalSettings = await readSettingsFile(getGlobalSettingsPath());
-  const globalDefs: Record<string, WorkflowDefinition> = (globalSettings.workflows as WorkflowSettings | undefined)?.definitions ?? {};
-  let merged: Record<string, WorkflowDefinition> = { ...globalDefs };
+  const agentDir = process.env.PI_CODING_AGENT_DIR ?? join(homedir(), ".pi", "agent");
+  const globalDir = join(agentDir, "workflows");
+  const projectDir = cwd ? join(cwd, ".pi", "workflows") : "";
 
-  // Load and merge project-local settings
-  if (cwd) {
-    const projectSettings = await readSettingsFile(getProjectSettingsPath(cwd));
-    const projectDefs: Record<string, WorkflowDefinition> = (projectSettings.workflows as WorkflowSettings | undefined)?.definitions ?? {};
-    merged = { ...merged, ...projectDefs };
-  }
+  const globalDefs = loadWorkflowsFromDir(globalDir);
+  const projectDefs = projectDir ? loadWorkflowsFromDir(projectDir) : {};
+
+  const merged: Record<string, WorkflowDefinition> = { ...globalDefs, ...projectDefs };
 
   // Validate and filter
   const valid: Record<string, WorkflowDefinition> = {};
