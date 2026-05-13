@@ -10,7 +10,7 @@ export function updateStatus(
   state: WorkflowState | null,
   definitions: Record<string, WorkflowDefinition>,
 ): void {
-  if (!isActive(state)) {
+  if (!state || !state.active) {
     ctx.ui.setStatus("workflow", undefined);
     return;
   }
@@ -20,10 +20,23 @@ export function updateStatus(
     return;
   }
   const phase = active.currentPhase;
-  const total = active.definition.phases.length;
-  const current = state.currentPhaseIndex + 1;
-  const name = active.definition.name;
-  const statusText = `${name} — ${phase.emoji} ${phase.name} [${current}/${total}]`;
+  let statusText: string;
+  if (state.currentPath.length === 1) {
+    // Linear workflow — keep existing format
+    const total = active.definition.phases.length;
+    const current = state.currentPath[0].phaseIndex + 1;
+    const name = active.definition.name;
+    statusText = `${name} — ${phase.emoji} ${phase.name} [${current}/${total}]`;
+  } else {
+    // Nested workflow — breadcrumb format with inner scope progress
+    const top = state.currentPath[state.currentPath.length - 1];
+    const innerDef = definitions[top.workflowKey];
+    const innerTotal = innerDef?.phases.length ?? 0;
+    const innerCurrent = top.phaseIndex + 1;
+    const breadcrumbNames = active.breadcrumb.slice(0, -1).map((b) => b.name).join(" > ");
+    const innerName = active.breadcrumb[active.breadcrumb.length - 1]?.name ?? "";
+    statusText = `${breadcrumbNames} > ${innerName} — ${phase.emoji} ${phase.name} [${innerCurrent}/${innerTotal}]`;
+  }
   ctx.ui.setStatus("workflow", statusText);
 }
 

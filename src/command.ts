@@ -1,5 +1,6 @@
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import type { WorkflowState, SetState, ReloadDefinitions, WorkflowDefinition } from "./types";
+import type { WorkflowState, SetState, ReloadDefinitions, WorkflowDefinition, PhaseEntry } from "./types";
+import { isSubworkflowRef } from "./types";
 import { createInitialState, persistState, isActive, resolveActive } from "./state";
 import { loadWorkflows, findWorkflowByCommandName, resolveTemplate } from "./config";
 
@@ -17,7 +18,9 @@ export function registerWorkflowCommand(
     description: "Start a configured workflow. Usage: /workflow {name} {description}",
     async getArgumentCompletions(prefix: string) {
       const workflows = await loadWorkflows();
-      const names = Object.values(workflows).map((w) => w.commandName);
+      const names = Object.values(workflows)
+        .filter(w => (w.show ?? 'user') === 'user')
+        .map(w => w.commandName);
       const filtered = names.filter((n) => n.startsWith(prefix));
       return filtered.length > 0 ? filtered.map((n) => ({ value: n, label: n })) : null;
     },
@@ -27,9 +30,9 @@ export function registerWorkflowCommand(
       if (!parts) {
         // No args — show available workflows
         const workflows = await loadWorkflows(ctx.cwd);
-        const entries = Object.entries(workflows).map(
-          ([key, def]) => ` ${def.commandName} — ${def.name}`,
-        );
+        const entries = Object.entries(workflows)
+          .filter(([_, def]) => (def.show ?? 'user') === 'user')
+          .map(([key, def]) => `  ${def.commandName} — ${def.name}`);
         ctx.ui.notify(
           "Usage: /workflow {name} {description}\n\nAvailable workflows:\n" + entries.join("\n"),
           "info",
@@ -60,6 +63,12 @@ export function registerWorkflowCommand(
       }
 
       const [workflowKey, definition] = match;
+
+      // Safety check: reject workflows not shown to users
+      if (definition.show === 'workflows') {
+        ctx.ui.notify(`"${commandName}" is a subworkflow that can only run as part of another workflow. It cannot be started directly.`, "error");
+        return;
+      }
       const state = getState();
 
       // Check for existing active workflow
@@ -90,7 +99,11 @@ export function registerWorkflowCommand(
       );
 
       // Resolve and send initial message
-      const firstPhase = definition.phases[0];
+      let firstPhaseEntry: PhaseEntry = definition.phases[0];
+      while (isSubworkflowRef(firstPhaseEntry)) {
+        firstPhaseEntry = firstPhaseEntry.resolved.phases[0];
+      }
+      const firstPhase = firstPhaseEntry;
       const initialMessage = resolveTemplate(definition.initialMessage, {
         workflowName: definition.name,
         workflowKey,

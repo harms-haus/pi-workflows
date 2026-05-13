@@ -17,6 +17,16 @@ export interface PhaseToolConfig {
   whitelist?: string[];
 }
 
+// ── Path Segment ──
+
+/** A single segment in the workflow navigation path stack. */
+export interface PathSegment {
+  /** The workflow key this segment refers to. */
+  workflowKey: string;
+  /** Index into that workflow's phases array. */
+  phaseIndex: number;
+}
+
 // ── Phase Definition ──
 
 export interface PhaseDefinition {
@@ -36,6 +46,35 @@ export interface PhaseDefinition {
   tools?: PhaseToolConfig;
   /** Subagent profiles available during this phase (listed in context injection). */
   availableProfiles?: string[];
+}
+
+// ── Subworkflow Reference ──
+
+/** A phase entry that delegates to another workflow definition. */
+export interface SubworkflowReference {
+  /** Discriminator: always true for subworkflow references. */
+  subworkflow: true;
+  /** The workflow key being referenced. */
+  workflowKey: string;
+  /** Resolved workflow definition (populated at load time). */
+  resolved: WorkflowDefinition;
+}
+
+// ── Phase Entry Union ──
+
+/** A single entry in a workflow's phases array: either a concrete phase or a subworkflow reference. */
+export type PhaseEntry = PhaseDefinition | SubworkflowReference;
+
+// ── Type Guards ──
+
+/** Returns true if the entry is a SubworkflowReference. */
+export function isSubworkflowRef(entry: PhaseEntry): entry is SubworkflowReference {
+  return 'subworkflow' in entry && entry.subworkflow === true;
+}
+
+/** Returns true if the entry is a plain PhaseDefinition (not a subworkflow reference). */
+export function isPhaseDefinition(entry: PhaseEntry): entry is PhaseDefinition {
+  return !('subworkflow' in entry);
 }
 
 // ── Workflow Definition ──
@@ -60,11 +99,16 @@ export interface WorkflowDefinition {
   /** Max session name length. Defaults to 50. */
   sessionNameMaxLength?: number;
   /**
-   * Ordered list of phase definitions.
+   * Ordered list of phase entries.
+   * Each entry is either a concrete PhaseDefinition or a SubworkflowReference.
    * The workflow advances linearly through this list.
    * Must contain at least 1 phase.
    */
-  phases: PhaseDefinition[];
+  phases: PhaseEntry[];
+  /** Controls visibility: "user" (default) = shown in /workflow command; "workflows" = only usable as a subworkflow. */
+  show?: "user" | "workflows";
+  /** Whether the workflow can be looped (restarted from phase 0). Defaults to true. */
+  loopable?: boolean;
   /**
    * Role instruction prepended to every context injection.
    * Template variables: {workflowName}, {blockedToolsList}.
@@ -118,8 +162,10 @@ export interface WorkflowState {
   active: boolean;
   /** The workflow definition key from settings (e.g., "rpir"). */
   workflowKey: string;
-  /** Index into the workflow's phases array. */
-  currentPhaseIndex: number;
+  /** Navigation path stack. Index 0 = top-level workflow, last = innermost scope. */
+  currentPath: PathSegment[];
+  /** Monotonically increasing counter, incremented on every phase change. */
+  globalStepCount: number;
   /** Unique task ID. */
   taskId: string;
   /** User's original description. */
@@ -135,15 +181,24 @@ export interface WorkflowState {
    * True if the workflow was cancelled (not completed).
    */
   cancelled: boolean;
+  /** @internal Set after first cancel request, requiring confirmation. */
+  _cancelPending?: boolean;
 }
 
 // ── Resolved Active Workflow (runtime convenience) ──
 
 export interface ActiveWorkflow {
+  /** The top-level workflow definition. */
   definition: WorkflowDefinition;
   state: WorkflowState;
+  /** The innermost resolved leaf phase (always a concrete PhaseDefinition). */
   currentPhase: PhaseDefinition;
-  nextPhase: PhaseDefinition | null;
+  /** The raw PhaseEntry at the top of the stack (may be a SubworkflowReference). */
+  currentPhaseEntry: PhaseEntry;
+  /** The next phase entry in the innermost scope, or null if at the end. */
+  nextPhase: PhaseEntry | null;
+  /** Breadcrumb trail from top-level to innermost scope. */
+  breadcrumb: Array<{ workflowKey: string; name: string; phaseName: string; emoji: string }>;
 }
 
 // ── Hook state mutation pattern ──

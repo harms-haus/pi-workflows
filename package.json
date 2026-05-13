@@ -4,8 +4,20 @@
   "type": "module",
   "main": "src/index.ts",
   "pi": {
-    "extensions": ["./src/index.ts"]
+    "extensions": [
+      "./src/index.ts"
+    ]
   },
-  "keywords": ["pi-package", "workflow"],
-  "license": "MIT"
+  "keywords": [
+    "pi-package",
+    "workflow"
+  ],
+  "scripts": {
+    "test": "vitest run"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "^0.74.0",
+    "vitest": "^4.1.6"
+  }
 }

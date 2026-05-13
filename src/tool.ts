@@ -3,7 +3,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import type { WorkflowState, WorkflowDefinition, GetState, SetState, GetDefinitions, } from "./types";
-import { advancePhase, persistState, resolveActive, isActive } from "./state";
+import { advancePhase, persistState, resolveActive, isActive, loopPhase } from "./state";
 import { resolveTemplate } from "./config";
 
 /**
@@ -19,12 +19,12 @@ export function registerWorkflowTool(
     name: "workflow_step",
     label: "Workflow Step",
     description:
-      "Show current workflow status, advance to the next phase, or cancel the active workflow. " +
+      "Show current workflow status, advance to the next phase, loop back to the start of the current scope, or cancel the active workflow. " +
       "Use this to coordinate any configured workflow.",
     parameters: Type.Object({
-      action: StringEnum(["next", "status", "cancel"] as const, {
+      action: StringEnum(["next", "status", "cancel", "loop"] as const, {
         description:
-          '"next" to advance to the next phase, "status" to check current state, "cancel" to abort the workflow',
+          '"next" to advance to the next phase, "status" to check current state, "cancel" to abort the workflow, "loop" to restart the current scope from phase 0',
       }),
       summary: Type.Optional(
         Type.String({
@@ -37,6 +37,7 @@ export function registerWorkflowTool(
       "Use workflow_step with action='next' when you finish a phase and want to advance.",
       "Use workflow_step with action='status' to check current workflow state.",
       "Use workflow_step with action='cancel' to abort the current workflow.",
+      "Use workflow_step with action='loop' to restart the current scope from the beginning.",
     ],
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       const state = getState();
@@ -61,20 +62,30 @@ export function registerWorkflowTool(
             content: [
               {
                 type: "text",
-                text: `Workflow definition '${state.workflowKey}' not found in settings. Use workflow_step with action='cancel' to clear the stale state.`,
+                text: `The workflow configuration for this session is no longer available. Use workflow_step with action='cancel' to clear it, or reload the workflow definitions.`,
               },
             ],
             details: { active: false, stale: true },
           };
         }
-        const { definition, currentPhase } = active;
-        const total = definition.phases.length;
-        const current = state.currentPhaseIndex + 1;
+        const { definition, currentPhase, breadcrumb } = active;
+        const top = state.currentPath[state.currentPath.length - 1];
+        const topDef = definitions[top.workflowKey];
+        const total = topDef.phases.length;
+        const current = top.phaseIndex + 1;
         const lines: string[] = [];
         lines.push(`**Workflow:** ${definition.name} (${state.workflowKey})`);
         lines.push(`**Task ID:** ${state.taskId}`);
         lines.push(`**Description:** ${state.taskDescription}`);
-        lines.push(`**Phase:** ${currentPhase.emoji} ${currentPhase.name} [${current}/${total}]`);
+        if (state.currentPath.length > 1) {
+          // Nested: show breadcrumb path with inner scope progress
+          const breadcrumbStr = breadcrumb.map(b => b.name).join(" > ");
+          lines.push(`**Path:** ${breadcrumbStr}`);
+          lines.push(`**Phase:** ${currentPhase.emoji} ${currentPhase.name} [${current}/${total}] (step ${state.globalStepCount})`);
+        } else {
+          // Linear: keep existing format
+          lines.push(`**Phase:** ${currentPhase.emoji} ${currentPhase.name} [${current}/${total}]`);
+        }
         lines.push(`**Started:** ${new Date(state.startedAt).toISOString()}`);
         lines.push("");
         lines.push("**What to do:**");
@@ -84,7 +95,7 @@ export function registerWorkflowTool(
         lines.push(`**Available profiles:** ${profiles?.join(", ") ?? "(none)"}`);
         return {
           content: [{ type: "text", text: lines.join("\n") }],
-          details: { active: true, workflowKey: state.workflowKey, phaseIndex: state.currentPhaseIndex },
+          details: { active: true, workflowKey: state.workflowKey, currentPath: state.currentPath },
         };
       }
 
@@ -96,8 +107,17 @@ export function registerWorkflowTool(
             details: { active: false },
           };
         }
+        // Two-step cancellation: first call requests confirmation, second call within the same turn confirms
+        if (!state!._cancelPending) {
+          state!._cancelPending = true;
+          return {
+            content: [{ type: "text", text: `⚠️ **Confirm cancellation** of workflow "${state!.taskDescription}"?\nCall workflow_step with action='cancel' again to confirm. This cannot be undone.` }],
+            details: { active: true, cancelPending: true },
+          };
+        }
         const newState: WorkflowState = {
-          ...state,
+          ...state!,
+          currentPath: state!.currentPath.map(s => ({ ...s })),
           active: false,
           cancelled: true,
           completionNotified: false,
@@ -106,7 +126,7 @@ export function registerWorkflowTool(
         persistState(pi, newState);
         ctx.ui.setStatus("workflow", undefined);
         return {
-          content: [{ type: "text", text: `Workflow cancelled: "${state.taskDescription}"` }],
+          content: [{ type: "text", text: `Workflow cancelled: "${state!.taskDescription}"` }],
           details: { active: false, cancelled: true },
         };
       }
@@ -119,18 +139,29 @@ export function registerWorkflowTool(
             details: { active: false },
           };
         }
-        const active = resolveActive(state, definitions);
+        const active = resolveActive(state!, definitions);
         if (!active) {
           return {
-            content: [{ type: "text", text: `Workflow definition '${state?.workflowKey}' not found.` }],
+            content: [{ type: "text", text: `Workflow definition '${state!.workflowKey}' not found.` }],
             details: { active: false },
           };
         }
-        const { definition, currentPhase, nextPhase } = active;
-        if (!nextPhase) {
-          // Advancing from last phase to DONE
+        const { currentPhase } = active;
+        const pathLenBefore = state!.currentPath.length;
+        const result = advancePhase(state!, definitions);
+        if (!result.advanced) {
+          return {
+            content: [{ type: "text", text: `Could not advance: ${currentPhase.name}` }],
+            details: { active: true },
+          };
+        }
+        persistState(pi, state!);
+
+        // Workflow completed (top-level done)
+        if (result.to === null) {
           const newState: WorkflowState = {
-            ...state,
+            ...state!,
+            currentPath: state!.currentPath.map(s => ({ ...s })),
             active: false,
             completionNotified: false,
           };
@@ -143,37 +174,89 @@ export function registerWorkflowTool(
                 type: "text",
                 text:
                   `✓ Advanced: ${currentPhase.name} → DONE\n\n` +
-                  `🎉 **All ${definition.phases.length} phases complete!** ` +
+                  `🎉 **All phases complete!** ` +
                   `Call workflow_step again or wait for the completion notification.`,
               },
             ],
             details: { advanced: true, from: currentPhase.name, to: "DONE" },
           };
         }
-        // Normal phase advance
-        const prevState = { ...state };
-        advancePhase(state, definition);
-        persistState(pi, state);
+
         // Re-resolve to get the new current phase
-        const newActive = resolveActive(state, definitions);
+        const newActive = resolveActive(state!, definitions);
         if (!newActive) {
           return {
-            content: [{ type: "text", text: "Error: phase index out of bounds after advance." }],
+            content: [{ type: "text", text: "Error: could not resolve active workflow after advance." }],
             details: {},
           };
         }
         ctx.ui.setStatus("workflow", undefined); // Will be re-set by turn_end hook
+
+        const pathLenAfter = state!.currentPath.length;
+        let advanceVerb = "Advanced";
+        if (pathLenAfter > pathLenBefore) {
+          // Entered a subworkflow — name it
+          const subName = newActive.breadcrumb.length > 0
+            ? newActive.breadcrumb[newActive.breadcrumb.length - 1].name
+            : "subworkflow";
+          advanceVerb = `Entered subworkflow '${subName}'`;
+        } else if (pathLenAfter < pathLenBefore) {
+          // Exited a subworkflow — show where we returned to
+          const parentBreadcrumb = newActive.breadcrumb.map(b => b.name).join(" > ");
+          advanceVerb = `Exited subworkflow, returning to ${parentBreadcrumb}`;
+        }
+
         return {
           content: [
             {
               type: "text",
               text:
-                `✓ Advanced: ${currentPhase.name} → ${newActive.currentPhase.emoji} ${newActive.currentPhase.name}\n\n` +
+                `✓ ${advanceVerb}: ${currentPhase.name} → ${newActive.currentPhase.emoji} ${newActive.currentPhase.name}\n\n` +
                 `**What to do in ${newActive.currentPhase.name}:**\n` +
                 `${newActive.currentPhase.instructions}`,
             },
           ],
           details: { advanced: true, from: currentPhase.name, to: newActive.currentPhase.name },
+        };
+      }
+
+      // ── Loop ──
+      if (params.action === "loop") {
+        if (!isActive(state)) {
+          return {
+            content: [{ type: "text", text: "No active workflow to loop." }],
+            details: { active: false },
+          };
+        }
+        const result = loopPhase(state!, definitions);
+        if ("error" in result) {
+          return {
+            content: [{ type: "text", text: `⚠️ ${result.error}` }],
+            details: { active: true, error: result.error },
+          };
+        }
+        persistState(pi, state!);
+        const newActive = resolveActive(state!, definitions);
+        if (!newActive) {
+          return {
+            content: [{ type: "text", text: "Error: could not resolve active workflow after loop." }],
+            details: {},
+          };
+        }
+        ctx.ui.setStatus("workflow", undefined); // will be re-set by turn_end
+        // Identify which scope was looped
+        const loopedScopeName = newActive.breadcrumb.length > 0
+          ? newActive.breadcrumb[newActive.breadcrumb.length - 1].name
+          : "workflow";
+        return {
+          content: [{
+            type: "text",
+            text:
+              `🔄 Looped '${loopedScopeName}' back to: ${newActive.currentPhase.emoji} ${newActive.currentPhase.name}\n\n` +
+              `**What to do in ${newActive.currentPhase.name}:**\n` +
+              `${newActive.currentPhase.instructions}`,
+          }],
+          details: { looped: true, to: result.to },
         };
       }
 
