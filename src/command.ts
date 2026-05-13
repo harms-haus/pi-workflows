@@ -134,8 +134,7 @@ export function registerCancelWorkflowCommand(
       // Persist so session resume knows it was cancelled
       persistState(pi, doneState);
 
-      // Clear the widget
-      ctx.ui.setWidget("workflow", undefined);
+      // Clear the status
       ctx.ui.setStatus("workflow", undefined);
 
       // Send cancellation notification immediately (bypass agent_end hook)

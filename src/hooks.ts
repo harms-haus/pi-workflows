@@ -6,18 +6,16 @@ import { resolveTemplate, getBlockedTools, getWhitelist } from "./config";
 
 // ── Status Bar ──
 export function updateStatus(
-  ctx: { ui: { setWidget: (key: string, lines: string[] | undefined) => void; setStatus: (key: string, text: string | undefined) => void } },
+  ctx: { ui: { setStatus: (key: string, text: string | undefined) => void } },
   state: WorkflowState | null,
   definitions: Record<string, WorkflowDefinition>,
 ): void {
   if (!isActive(state)) {
-    ctx.ui.setWidget("workflow", undefined);
     ctx.ui.setStatus("workflow", undefined);
     return;
   }
   const active = resolveActive(state, definitions);
   if (!active) {
-    ctx.ui.setWidget("workflow", undefined);
     ctx.ui.setStatus("workflow", undefined);
     return;
   }
@@ -26,7 +24,6 @@ export function updateStatus(
   const current = state.currentPhaseIndex + 1;
   const name = active.definition.name;
   const statusText = `${name} — ${phase.emoji} ${phase.name} [${current}/${total}]`;
-  ctx.ui.setWidget("workflow", [statusText]);
   ctx.ui.setStatus("workflow", statusText);
 }
 
@@ -102,7 +99,6 @@ export function handleAgentEnd(
           { triggerTurn: false },
         );
       }
-      ctx.ui.setWidget("workflow", undefined);
       ctx.ui.setStatus("workflow", undefined);
       return { unload: true, persist: false };
     }
@@ -119,7 +115,6 @@ export function handleAgentEnd(
       );
     }
     state.completionNotified = true;
-    ctx.ui.setWidget("workflow", undefined);
     ctx.ui.setStatus("workflow", undefined);
     return { unload: true, persist: true };
   }
