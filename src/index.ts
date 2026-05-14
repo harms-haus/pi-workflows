@@ -58,9 +58,9 @@ export default function (pi: ExtensionAPI): void {
     return handleBeforeAgentStart(state, definitions);
   });
 
-  pi.on("agent_end", async (_event, ctx) => {
+  pi.on("agent_end", async (event, ctx) => {
     try {
-      const mutation = handleAgentEnd(pi, state, definitions, ctx);
+      const mutation = handleAgentEnd(pi, state, definitions, ctx, event);
       if (mutation.unload) {
         state = null;
       } else if (mutation.state) {

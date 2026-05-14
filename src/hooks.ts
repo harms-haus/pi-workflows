@@ -1,6 +1,6 @@
-import type { ExtensionAPI, ExtensionContext, ToolCallEvent, BeforeAgentStartEvent, AgentEndEvent, } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext, ToolCallEvent, AgentEndEvent, } from "@earendil-works/pi-coding-agent";
 import type { WorkflowState, WorkflowDefinition, HookStateMutation, } from "./types";
-import { resolveActive, persistState, isActive } from "./state";
+import { resolveActive, isActive } from "./state";
 import { buildContextPrompt, DEFAULT_NOT_DONE_REMINDER, DEFAULT_COMPLETION_MESSAGE, DEFAULT_CANCELLED_MESSAGE } from "./prompts";
 import { resolveTemplate, getBlockedTools, getWhitelist } from "./config";
 
@@ -89,11 +89,30 @@ export function handleBeforeAgentStart(
 }
 
 // ── agent_end Hook ──
+
+/**
+ * Check if the last assistant message in the agent_end event was aborted
+ * (i.e., the user interrupted the agent). Returns true if the agent was
+ * interrupted, false if it stopped naturally.
+ */
+function wasAborted(messages: AgentEndEvent["messages"]): boolean {
+  // Walk messages in reverse to find the last assistant message
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
+    if (msg.role === "assistant") {
+      return msg.stopReason === "aborted";
+    }
+  }
+  // No assistant message found — shouldn't happen, but treat as not aborted
+  return false;
+}
+
 export function handleAgentEnd(
   pi: ExtensionAPI,
   state: WorkflowState | null,
   definitions: Record<string, WorkflowDefinition>,
   ctx: ExtensionContext,
+  event: AgentEndEvent,
 ): HookStateMutation {
   const noOp: HookStateMutation = { unload: false, persist: false };
   if (!state) return noOp;
@@ -133,6 +152,10 @@ export function handleAgentEnd(
   }
   // Case B: Workflow is still active (agent tried to stop mid-workflow)
   if (state.active) {
+    // If the user interrupted the agent, don't enforce continuation
+    if (wasAborted(event.messages)) {
+      return noOp;
+    }
     const active = resolveActive(state, definitions);
     if (!active) return noOp;
     const { definition, currentPhase } = active;
