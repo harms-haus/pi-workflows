@@ -1,3 +1,4 @@
 node_modules/
 bifrost.db
 package-lock.json
+.bifrost.yaml
