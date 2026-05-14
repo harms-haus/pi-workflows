@@ -1,16 +1,17 @@
 # pi-workflows
 
-A generic, configurable pi extension for defining and running multiple named workflows.
+A configurable pi extension for defining and running named multi-phase workflows with tool control, subworkflow nesting, and state persistence.
 
 ## Features
 
-- **Multiple Named Workflows** — Define any number of workflows in `settings.json`
-- **Configurable Phases** — Each phase has instructions, emoji, tool blacklist/whitelist, and available subagent profiles
-- **`/workflow` Command** — Start any workflow with `/workflow {name} {description}`
-- **Tool Enforcement** — Per-phase tool blocking via blacklist or whitelist
-- **Agent Completion Blocking** — The agent cannot finish until the workflow reaches DONE
-- **State Persistence** — Survives session restarts via `pi.appendEntry`
-- **Powerline Widget** — Shows "{workflow name} — {emoji} {phase name} [current/total}]" during active workflow
+- **Named workflows** — Define any number of workflows as standalone directories with a `workflow.yaml` file, each invoked by a unique slash command.
+- **Configurable phases** — Each phase specifies its own instructions, emoji, and available subagent profiles.
+- **Per-phase tool control** — Restrict tools per phase using a blacklist (block specific tools) or whitelist (allow only specific tools).
+- **Subworkflow nesting** — Compose workflows by referencing other workflows as phases, with cycle detection and breadcrumb navigation.
+- **State persistence** — Workflow state survives session restarts via `pi.appendEntry`.
+- **Auto-continue enforcement** — The agent cannot finish until the workflow reaches DONE; a configurable reminder is injected on premature `agent_end`.
+- **Template variables** — Use `{workflowName}`, `{phaseName}`, `{taskDescription}`, and more in messages and instructions.
+- **Slash commands** — Start workflows with `/workflow`, cancel with `/cancel-workflow`, and inspect progress with the `workflow_step` tool.
 
 ## Installation
 
@@ -18,117 +19,93 @@ A generic, configurable pi extension for defining and running multiple named wor
 pi install git:github.com/harms-haus/pi-workflows
 ```
 
-## Configuration
+## Quick Start
 
-Workflows are defined in `settings.json` under `workflows.definitions`. Both global (`~/.pi/agent/settings.json`) and project-local (`.pi/settings.json`) settings are supported.
+**1. Create a workflow directory** under `.pi/workflows/` in your project (or `~/.pi/agent/workflows/` globally):
 
-### Schema
-
-```json
-{
-  "workflows": {
-    "definitions": {
-      "workflow-key": {
-        "name": "Human-Readable Name",
-        "commandName": "cmd-name",
-        "initialMessage": "Template message with {variables}",
-        "sessionNamePrefix": "Workflow: ",
-        "sessionNameMaxLength": 50,
-        "phases": [
-          {
-            "id": "phase-id",
-            "name": "Phase Name",
-            "emoji": "🔍",
-            "instructions": "Instructions for this phase...",
-            "tools": {
-              "blacklist": ["edit", "write"]
-            },
-            "availableProfiles": ["profile-1", "profile-2"]
-          }
-        ]
-      }
-    }
-  }
-}
+```bash
+mkdir -p .pi/workflows/my-workflow
 ```
 
-### Phase Tool Configuration
+**2. Write `workflow.yaml`** with two phases referencing markdown files:
 
-Each phase can restrict tools using either `blacklist` or `whitelist` (not both):
-- **blacklist**: Block specific tools. All other tools are allowed.
-- **whitelist**: Allow only specific tools. All other tools are blocked.
+```yaml
+name: My Workflow
+commandName: my-workflow
+initialMessage: "Starting {workflowName} for: \"{description}\""
+phases:
+  - gather.md
+  - execute.md
+```
 
-The `workflow_step` tool is always allowed regardless of configuration.
+Create the phase files alongside `workflow.yaml`:
 
-### Example: RPIR Workflow
+```markdown
+<!-- gather.md -->
+---
+id: gather
+name: Gather
+emoji: "🔍"
+---
+Research the task and summarize findings.
+```
 
-```json
-{
-  "workflows": {
-    "definitions": {
-      "rpir": {
-        "name": "RPIR Development Workflow",
-        "commandName": "rpir",
-        "initialMessage": "Start the {workflowName} for: \"{description}\"\n\nBegin with Phase 1 ({firstPhaseName}).",
-        "sessionNamePrefix": "RPIR: ",
-        "phases": [
-          {
-            "id": "research",
-            "name": "Research",
-            "emoji": "🔍",
-            "instructions": "Spawn parallel research subagents using delegate_to_subagents with vertical-researcher and horizontal-researcher profiles.",
-            "tools": { "blacklist": ["edit", "write"] },
-            "availableProfiles": ["vertical-researcher", "horizontal-researcher"]
-          },
-          {
-            "id": "planning",
-            "name": "Planning",
-            "emoji": "📋",
-            "instructions": "Delegate to the planner subagent. Parse the plan into todos using write_todos.",
-            "tools": { "blacklist": ["edit", "write"] },
-            "availableProfiles": ["planner"]
-          },
-          {
-            "id": "implementing",
-            "name": "Implementing",
-            "emoji": "🔨",
-            "instructions": "Loop through todos. For each: start it, delegate to task-coder, review with task-reviewer, fix if needed (max 3 iterations), then complete.",
-            "tools": { "blacklist": ["edit", "write"] },
-            "availableProfiles": ["task-coder", "task-reviewer"]
-          },
-          {
-            "id": "reviewing",
-            "name": "Reviewing",
-            "emoji": "👁️",
-            "instructions": "Spawn parallel review specialists (efficiency, security, ui-ux). Present a final summary.",
-            "tools": { "blacklist": ["edit", "write"] },
-            "availableProfiles": ["efficiency-reviewer", "security-reviewer", "ui-ux-reviewer"]
-          }
-        ]
-      }
-    }
-  }
-}
+```markdown
+<!-- execute.md -->
+---
+id: execute
+name: Execute
+emoji: "🔨"
+tools:
+  whitelist:
+    - edit
+    - write
+    - workflow_step
+---
+Implement the solution based on gathered research.
+```
+
+See [docs/configuration-reference.md](docs/configuration-reference.md) for the full schema.
+
+**3. Run the workflow** in your pi session:
+
+```
+/workflow my-workflow add user authentication
 ```
 
 ## Usage
 
-```
-/workflow rpir Add user authentication with JWT tokens
-```
+### Commands
 
-Cancel the active workflow (bypasses the not-done reminder loop):
-```
-/cancel-workflow
-```
+| Command | Description |
+|---------|-------------|
+| `/workflow {commandName} {description}` | Start a workflow |
+| `/cancel-workflow` | Cancel the active workflow (bypasses the not-done reminder) |
 
-### Tool: `workflow_step`
+### `workflow_step` Tool
 
 | Action | Description |
 |--------|-------------|
-| `status` | Show current workflow state |
-| `next` | Advance to the next phase |
-| `cancel` | Cancel the active workflow |
+| `status` | Show current workflow state, phase instructions, and available profiles |
+| `next` | Advance to the next phase (or DONE if on the last phase) |
+| `cancel` | Cancel the active workflow (requires two calls to confirm) |
+| `loop` | Restart the current scope from phase 0 (if the workflow is `loopable`) |
+
+For complete examples, see [docs/examples.md](docs/examples.md).
+
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [Configuration Reference](docs/configuration-reference.md) | Full schema for `workflow.yaml` and phase markdown files |
+| [Template Variables](docs/template-variables.md) | All available `{variables}` and where they can be used |
+| [Subworkflows](docs/subworkflows.md) | Composing workflows from other workflows |
+| [Examples](docs/examples.md) | Complete workflow definitions and usage patterns |
+| [Architecture](docs/architecture.md) | Extension structure, hooks, and data flow |
+| [Hook Lifecycle](docs/hook-lifecycle.md) | How hooks intercept agent turns and tool calls |
+| [State Management](docs/state-management.md) | How workflow state is tracked and persisted |
+| [Testing](docs/testing.md) | Running and writing tests for the extension |
+| [Contributing](docs/contributing.md) | Development setup and contribution guidelines |
 
 ## License
 
