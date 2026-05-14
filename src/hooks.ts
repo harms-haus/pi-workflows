@@ -4,6 +4,21 @@ import { resolveActive, isActive } from "./state";
 import { buildContextPrompt, DEFAULT_NOT_DONE_REMINDER, DEFAULT_COMPLETION_MESSAGE, DEFAULT_CANCELLED_MESSAGE } from "./prompts";
 import { resolveTemplate, getBlockedTools, getWhitelist } from "./config";
 
+// Module-level countdown handle — prevents stacked intervals when agent_end
+// fires while a previous countdown is still active (race condition guard).
+let activeCountdown: ReturnType<typeof setInterval> | null = null;
+
+/** Clear any active countdown interval and widget. Called from session_start/session_tree handlers. */
+export function clearActiveCountdown(ctx: ExtensionContext): void {
+  if (activeCountdown !== null) {
+    clearInterval(activeCountdown);
+    activeCountdown = null;
+  }
+  if (ctx.hasUI) {
+    ctx.ui.setWidget("workflow-countdown", undefined);
+  }
+}
+
 // ── Status Bar ──
 export function updateStatus(
   ctx: { ui: { setStatus: (key: string, text: string | undefined) => void } },
@@ -163,20 +178,55 @@ export function handleAgentEnd(
       definition.notDoneReminder ?? DEFAULT_NOT_DONE_REMINDER,
       { workflowName: definition.name, phaseName: currentPhase.name, phaseEmoji: currentPhase.emoji, phaseInstructions: currentPhase.instructions, taskDescription: state.taskDescription, taskId: state.taskId, workflowKey: state.workflowKey, },
     );
-    // Show countdown message immediately (no turn trigger)
-    pi.sendMessage(
-      { customType: "workflow:countdown", content: `Auto-continuing workflow in 3s... (type anything to interrupt)`, display: true },
-      { triggerTurn: false },
-    );
+    // Show live countdown widget and auto-continue after 3 seconds
+    if (ctx.hasUI) {
+      // Clear any existing countdown to prevent stacked intervals
+      if (activeCountdown !== null) { clearInterval(activeCountdown); }
 
-    // Delay to let agent loop fully wind down and give user a grace period
-    setTimeout(() => {
-      try {
-        pi.sendUserMessage(reminder);
-      } catch {
-        // User already started typing — skip auto-continue
-      }
-    }, 3000);
+      let remaining = 3;
+      const interval = setInterval(() => {
+        try {
+          remaining--;
+          if (remaining > 0) {
+            ctx.ui.setWidget("workflow-countdown", [
+              `⏳ Auto-continuing in ${remaining}s... (type anything to interrupt)`,
+            ], { placement: "aboveEditor" });
+          } else {
+            clearInterval(interval);
+            activeCountdown = null;
+            ctx.ui.setWidget("workflow-countdown", undefined);
+            try {
+              pi.sendUserMessage(reminder);
+            } catch {
+              // User already started typing — skip auto-continue
+            }
+          }
+        } catch {
+          clearInterval(interval);
+          activeCountdown = null;
+          ctx.ui.setWidget("workflow-countdown", undefined);
+        }
+      }, 1000);
+      activeCountdown = interval;
+
+      // Show initial widget immediately (3s)
+      ctx.ui.setWidget("workflow-countdown", [
+        "⏳ Auto-continuing in 3s... (type anything to interrupt)",
+      ], { placement: "aboveEditor" });
+    } else {
+      // Fallback for RPC/print mode — no UI available
+      pi.sendMessage(
+        { customType: "workflow:countdown", content: "Auto-continuing workflow in 3s... (type anything to interrupt)", display: true },
+        { triggerTurn: false },
+      );
+      setTimeout(() => {
+        try {
+          pi.sendUserMessage(reminder);
+        } catch {
+          // User already started typing — skip auto-continue
+        }
+      }, 3000);
+    }
     return noOp;
   }
   return noOp;

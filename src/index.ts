@@ -2,7 +2,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { WorkflowState, WorkflowDefinition } from "./types";
 import { loadWorkflows } from "./config";
 import { persistState, reconstructState } from "./state";
-import { updateStatus, handleToolCall, handleBeforeAgentStart, handleAgentEnd } from "./hooks";
+import { updateStatus, handleToolCall, handleBeforeAgentStart, handleAgentEnd, clearActiveCountdown } from "./hooks";
 import { registerWorkflowTool } from "./tool";
 import { registerWorkflowCommand, registerCancelWorkflowCommand } from "./command";
 import { registerRenderers } from "./renderers";
@@ -28,6 +28,7 @@ export default function (pi: ExtensionAPI): void {
 
   pi.on("session_start", async (_event, ctx) => {
     try {
+      clearActiveCountdown(ctx);
       definitions = await loadWorkflows(ctx.cwd);
       state = reconstructState(ctx);
       updateStatus(ctx, state, definitions);
@@ -39,6 +40,7 @@ export default function (pi: ExtensionAPI): void {
 
   pi.on("session_tree", async (_event, ctx) => {
     try {
+      clearActiveCountdown(ctx);
       // Capture cwd synchronously before any async gap
       const cwd = ctx.cwd;
       definitions = await loadWorkflows(cwd);
