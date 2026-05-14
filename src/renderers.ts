@@ -23,14 +23,4 @@ export function registerRenderers(pi: ExtensionAPI): void {
       0,
     );
   });
-
-  // Continue message renderer — shows the not-done reminder
-  pi.registerMessageRenderer("workflow:continue", (message, _opts, theme) => {
-    const content = typeof message.content === "string" ? message.content : "";
-    return new Text(
-      theme.fg("accent", "🔄 ") + theme.fg("dim", content),
-      0,
-      0,
-    );
-  });
 }

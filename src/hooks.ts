@@ -163,10 +163,7 @@ export function handleAgentEnd(
       definition.notDoneReminder ?? DEFAULT_NOT_DONE_REMINDER,
       { workflowName: definition.name, phaseName: currentPhase.name, phaseEmoji: currentPhase.emoji, phaseInstructions: currentPhase.instructions, taskDescription: state.taskDescription, taskId: state.taskId, workflowKey: state.workflowKey, },
     );
-    pi.sendMessage(
-      { customType: "workflow:continue", content: reminder, display: false },
-      { triggerTurn: true, deliverAs: "nextTurn" },
-    );
+    pi.sendUserMessage(reminder);
     return noOp;
   }
   return noOp;
