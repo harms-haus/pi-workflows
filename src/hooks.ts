@@ -163,7 +163,20 @@ export function handleAgentEnd(
       definition.notDoneReminder ?? DEFAULT_NOT_DONE_REMINDER,
       { workflowName: definition.name, phaseName: currentPhase.name, phaseEmoji: currentPhase.emoji, phaseInstructions: currentPhase.instructions, taskDescription: state.taskDescription, taskId: state.taskId, workflowKey: state.workflowKey, },
     );
-    pi.sendUserMessage(reminder);
+    // Show countdown message immediately (no turn trigger)
+    pi.sendMessage(
+      { customType: "workflow:countdown", content: `Auto-continuing workflow in 3s... (type anything to interrupt)`, display: true },
+      { triggerTurn: false },
+    );
+
+    // Delay to let agent loop fully wind down and give user a grace period
+    setTimeout(() => {
+      try {
+        pi.sendUserMessage(reminder);
+      } catch {
+        // User already started typing — skip auto-continue
+      }
+    }, 3000);
     return noOp;
   }
   return noOp;

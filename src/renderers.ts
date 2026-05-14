@@ -23,4 +23,14 @@ export function registerRenderers(pi: ExtensionAPI): void {
       0,
     );
   });
+
+  // Countdown shown during the grace period before auto-continue
+  pi.registerMessageRenderer("workflow:countdown", (message, _opts, theme) => {
+    const content = typeof message.content === "string" ? message.content : "";
+    return new Text(
+      theme.fg("accent", "⏳ ") + theme.fg("dim", content),
+      0,
+      0,
+    );
+  });
 }
