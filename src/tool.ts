@@ -305,6 +305,12 @@ export function registerWorkflowTool(
         if (isError || isCancel || isComplete) {
           return new Text(theme.fg("toolOutput", t), 0, 0);
         }
+        // For next/loop/status, show just the first line (transition summary)
+        // and hide the verbose phase instructions below
+        const firstLine = t.split("\n")[0];
+        if (firstLine) {
+          return new Text(theme.fg("toolOutput", firstLine), 0, 0);
+        }
       }
       return new Container();
     },
