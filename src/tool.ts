@@ -303,11 +303,7 @@ export function registerWorkflowTool(
         const isCancel = t.includes("Confirm cancellation") || t.includes("cancelled");
         const isComplete = t.includes("All phases complete");
         if (isError || isCancel || isComplete) {
-          return new Text(
-            theme.fg("toolOutput", t),
-            0,
-            0,
-          );
+          return new Text(theme.fg("toolOutput", t), 0, 0);
         }
       }
       return new Container();
