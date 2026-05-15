@@ -3,7 +3,7 @@ import { join, resolve, sep } from "node:path";
 import { homedir } from "node:os";
 import { parse as yamlParse } from "yaml";
 import { parseFrontmatter } from "@earendil-works/pi-coding-agent";
-import type { WorkflowDefinition, PhaseDefinition, PhaseToolConfig, SubworkflowReference } from "./types";
+import type { WorkflowDefinition, PhaseDefinition, PhaseToolConfig } from "./types";
 import { isSubworkflowRef } from "./types";
 
 // ── Constants ──
@@ -14,10 +14,7 @@ const VALID_COMMAND_NAME_RE = /^[a-zA-Z0-9_-]+$/;
  * Replaces {varName} occurrences in template with values from vars.
  * Unknown variables are left as-is.
  */
-export function resolveTemplate(
-  template: string,
-  vars: Record<string, string>,
-): string {
+export function resolveTemplate(template: string, vars: Record<string, string>): string {
   return template.replace(/\{(\w+)\}/g, (_match, key: string) => {
     return vars[key] !== undefined ? vars[key] : `{${key}}`;
   });
@@ -28,10 +25,7 @@ export function resolveTemplate(
  * Validates a workflow definition.
  * Returns null if valid, or an error message string if invalid.
  */
-export function validateWorkflowDefinition(
-  key: string,
-  def: WorkflowDefinition,
-): string | null {
+export function validateWorkflowDefinition(key: string, def: WorkflowDefinition): string | null {
   const show = def.show ?? "user";
 
   if (!def.name || typeof def.name !== "string" || def.name.trim() === "") {
@@ -46,7 +40,11 @@ export function validateWorkflowDefinition(
     if (!VALID_COMMAND_NAME_RE.test(def.commandName)) {
       return `Workflow "${key}": commandName must match /^[a-zA-Z0-9_-]+$. Got: "${def.commandName}"`;
     }
-    if (!def.initialMessage || typeof def.initialMessage !== "string" || def.initialMessage.trim() === "") {
+    if (
+      !def.initialMessage ||
+      typeof def.initialMessage !== "string" ||
+      def.initialMessage.trim() === ""
+    ) {
       return `Workflow "${key}": initialMessage must be a non-empty string.`;
     }
   }
@@ -61,7 +59,11 @@ export function validateWorkflowDefinition(
 
     if (isSubworkflowRef(phase)) {
       // Subworkflow reference: only validate workflowKey
-      if (!phase.workflowKey || typeof phase.workflowKey !== "string" || phase.workflowKey.trim() === "") {
+      if (
+        !phase.workflowKey ||
+        typeof phase.workflowKey !== "string" ||
+        phase.workflowKey.trim() === ""
+      ) {
         return `Workflow "${key}", phase[${i}]: workflowKey must be a non-empty string.`;
       }
       // Skip id/name/emoji/instructions validation — those live on the resolved definition
@@ -76,7 +78,11 @@ export function validateWorkflowDefinition(
       if (!phase.emoji || typeof phase.emoji !== "string" || phase.emoji.trim() === "") {
         return `Workflow "${key}", phase[${i}]: emoji must be a non-empty string.`;
       }
-      if (!phase.instructions || typeof phase.instructions !== "string" || phase.instructions.trim() === "") {
+      if (
+        !phase.instructions ||
+        typeof phase.instructions !== "string" ||
+        phase.instructions.trim() === ""
+      ) {
         return `Workflow "${key}", phase[${i}]: instructions must be a non-empty string.`;
       }
       if (seenIds.has(phase.id)) {
@@ -115,9 +121,7 @@ export function validateWorkflowDefinition(
  * Uses iterative DFS with 3-state coloring (WHITE/GRAY/BLACK).
  * Returns an array of error messages (empty = no cycles).
  */
-export function detectCycles(
-  definitions: Record<string, WorkflowDefinition>,
-): string[] {
+export function detectCycles(definitions: Record<string, WorkflowDefinition>): string[] {
   const errors: string[] = [];
   const keys = Object.keys(definitions);
 
@@ -137,7 +141,9 @@ export function detectCycles(
   }
 
   // 2. Initialize all nodes as WHITE (0)
-  const WHITE = 0, GRAY = 1, BLACK = 2;
+  const WHITE = 0,
+    GRAY = 1,
+    BLACK = 2;
   const color = new Map<string, number>();
   for (const key of keys) {
     color.set(key, WHITE);
@@ -149,16 +155,16 @@ export function detectCycles(
 
     const parent = new Map<string, string>();
     // Stack entries: { key, neighborIdx, phase }
-    const stack: Array<{ key: string; neighborIdx: number; phase: 'enter' | 'exit' }> = [
-      { key: startKey, neighborIdx: 0, phase: 'enter' },
+    const stack: Array<{ key: string; neighborIdx: number; phase: "enter" | "exit" }> = [
+      { key: startKey, neighborIdx: 0, phase: "enter" },
     ];
 
     while (stack.length > 0) {
       const top = stack[stack.length - 1];
 
-      if (top.phase === 'enter') {
+      if (top.phase === "enter") {
         color.set(top.key, GRAY);
-        top.phase = 'exit';
+        top.phase = "exit";
         top.neighborIdx = 0;
         continue; // Re-process as 'exit' to iterate neighbors
       }
@@ -188,11 +194,11 @@ export function detectCycles(
           cycleKeys.reverse();
 
           errors.push(
-            `Cycle detected: ${cycleKeys.join(' → ')} → ${cycleKeys[0]}. Skipping workflow "${cycleKeys[0]}".`
+            `Cycle detected: ${cycleKeys.join(" → ")} → ${cycleKeys[0]}. Skipping workflow "${cycleKeys[0]}".`,
           );
         } else if (neighborColor === WHITE) {
           parent.set(neighbor, top.key);
-          stack.push({ key: neighbor, neighborIdx: 0, phase: 'enter' });
+          stack.push({ key: neighbor, neighborIdx: 0, phase: "enter" });
         }
         // BLACK → skip
         continue;
@@ -230,7 +236,10 @@ export function findWorkflowByCommandName(
  * Load a single workflow from a directory containing workflow.yaml and phase .md files.
  * Returns null if the directory is not a valid workflow directory.
  */
-function loadWorkflowFromDir(dirPath: string, workflowsRoot: string): WorkflowDefinition | null {
+export function loadWorkflowFromDir(
+  dirPath: string,
+  workflowsRoot: string,
+): WorkflowDefinition | null {
   const yamlPath = join(dirPath, "workflow.yaml");
   if (!existsSync(yamlPath)) return null;
 
@@ -244,7 +253,8 @@ function loadWorkflowFromDir(dirPath: string, workflowsRoot: string): WorkflowDe
     }
 
     // Parse show field
-    const show: "user" | "workflows" | undefined = parsed.show === "workflows" ? "workflows" : undefined;
+    const show: "user" | "workflows" | undefined =
+      parsed.show === "workflows" ? "workflows" : undefined;
 
     // Extract required fields
     if (typeof parsed.name !== "string" || !parsed.name) {
@@ -290,13 +300,20 @@ function loadWorkflowFromDir(dirPath: string, workflowsRoot: string): WorkflowDe
     if (typeof parsed.loopable === "boolean") workflow.loopable = parsed.loopable;
 
     // Extract optional string fields
-    if (typeof parsed.sessionNamePrefix === "string") workflow.sessionNamePrefix = parsed.sessionNamePrefix;
-    if (typeof parsed.sessionNameMaxLength === "number") workflow.sessionNameMaxLength = parsed.sessionNameMaxLength;
-    if (typeof parsed.roleInstruction === "string") workflow.roleInstruction = parsed.roleInstruction;
-    if (typeof parsed.advanceReminder === "string") workflow.advanceReminder = parsed.advanceReminder;
-    if (typeof parsed.blockReasonTemplate === "string") workflow.blockReasonTemplate = parsed.blockReasonTemplate;
-    if (typeof parsed.completionMessage === "string") workflow.completionMessage = parsed.completionMessage;
-    if (typeof parsed.notDoneReminder === "string") workflow.notDoneReminder = parsed.notDoneReminder;
+    if (typeof parsed.sessionNamePrefix === "string")
+      workflow.sessionNamePrefix = parsed.sessionNamePrefix;
+    if (typeof parsed.sessionNameMaxLength === "number")
+      workflow.sessionNameMaxLength = parsed.sessionNameMaxLength;
+    if (typeof parsed.roleInstruction === "string")
+      workflow.roleInstruction = parsed.roleInstruction;
+    if (typeof parsed.advanceReminder === "string")
+      workflow.advanceReminder = parsed.advanceReminder;
+    if (typeof parsed.blockReasonTemplate === "string")
+      workflow.blockReasonTemplate = parsed.blockReasonTemplate;
+    if (typeof parsed.completionMessage === "string")
+      workflow.completionMessage = parsed.completionMessage;
+    if (typeof parsed.notDoneReminder === "string")
+      workflow.notDoneReminder = parsed.notDoneReminder;
 
     // Load each phase entry (string filename or subworkflow reference object)
     for (const phaseEntry of parsed.phases) {
@@ -309,14 +326,18 @@ function loadWorkflowFromDir(dirPath: string, workflowsRoot: string): WorkflowDe
         try {
           const canonicalPhase = realpathSync(phaseFilePath);
           if (!canonicalPhase.startsWith(canonicalRoot + sep)) {
-            console.warn(`[pi-workflows] Phase file path escapes workflows root: ${phaseEntry} in ${yamlPath}`);
+            console.warn(
+              `[pi-workflows] Phase file path escapes workflows root: ${phaseEntry} in ${yamlPath}`,
+            );
             return null;
           }
         } catch {
           // File doesn't exist yet on disk; do a deterministic prefix check instead
           const resolvedPath = resolve(dirPath, phaseEntry);
           if (!resolvedPath.startsWith(canonicalRoot + sep)) {
-            console.warn(`[pi-workflows] Phase file path escapes workflows root: ${phaseEntry} in ${yamlPath}`);
+            console.warn(
+              `[pi-workflows] Phase file path escapes workflows root: ${phaseEntry} in ${yamlPath}`,
+            );
             return null;
           }
         }
@@ -347,7 +368,11 @@ function loadWorkflowFromDir(dirPath: string, workflowsRoot: string): WorkflowDe
           };
 
           // Extract optional tools config
-          if (frontmatter.tools && typeof frontmatter.tools === "object" && !Array.isArray(frontmatter.tools)) {
+          if (
+            frontmatter.tools &&
+            typeof frontmatter.tools === "object" &&
+            !Array.isArray(frontmatter.tools)
+          ) {
             const toolsConfig = frontmatter.tools as Record<string, unknown>;
             const tools: PhaseToolConfig = {};
 
@@ -375,15 +400,21 @@ function loadWorkflowFromDir(dirPath: string, workflowsRoot: string): WorkflowDe
           );
           return null;
         }
-      } else if (typeof phaseEntry === "object" && phaseEntry !== null && typeof phaseEntry.subworkflow === "string") {
+      } else if (
+        typeof phaseEntry === "object" &&
+        phaseEntry !== null &&
+        typeof phaseEntry.subworkflow === "string"
+      ) {
         // Subworkflow reference placeholder — will be resolved in two-pass loading
         workflow.phases.push({
           subworkflow: true,
           workflowKey: String(phaseEntry.subworkflow),
-          resolved: null as any, // Will be resolved in two-pass loading (Step 5)
+          resolved: null, // Will be resolved in two-pass loading (Step 5)
         });
       } else {
-        console.warn(`[pi-workflows] Invalid phase entry in ${yamlPath}: expected string or { subworkflow: key } object`);
+        console.warn(
+          `[pi-workflows] Invalid phase entry in ${yamlPath}: expected string or { subworkflow: key } object`,
+        );
         return null;
       }
     }
@@ -401,7 +432,7 @@ function loadWorkflowFromDir(dirPath: string, workflowsRoot: string): WorkflowDe
  * Scan a parent directory for workflow subdirectories and load each one.
  * Returns a record keyed by directory name.
  */
-function loadWorkflowsFromDir(parentDir: string): Record<string, WorkflowDefinition> {
+export function loadWorkflowsFromDir(parentDir: string): Record<string, WorkflowDefinition> {
   const definitions: Record<string, WorkflowDefinition> = {};
 
   if (!existsSync(parentDir)) return definitions;
@@ -437,9 +468,7 @@ function loadWorkflowsFromDir(parentDir: string): Record<string, WorkflowDefinit
  * Project definitions override global definitions with the same key.
  * Invalid definitions are excluded with a console.warn.
  */
-export async function loadWorkflows(
-  cwd?: string,
-): Promise<Record<string, WorkflowDefinition>> {
+export async function loadWorkflows(cwd?: string): Promise<Record<string, WorkflowDefinition>> {
   const agentDir = process.env.PI_CODING_AGENT_DIR ?? join(homedir(), ".pi", "agent");
   const globalDir = join(agentDir, "workflows");
   const projectDir = cwd ? join(cwd, ".pi", "workflows") : "";
@@ -471,7 +500,7 @@ export async function loadWorkflows(
       // Extract keys between "Cycle detected: " and the period
       const match = msg.match(/^Cycle detected: (.+?)\. /);
       if (match) {
-        const keys = match[1].split(' → ');
+        const keys = match[1].split(" → ");
         for (const k of keys) {
           cycleKeys.add(k);
         }

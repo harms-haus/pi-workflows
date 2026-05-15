@@ -1,6 +1,6 @@
-import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
-import type { WorkflowState, SetState, ReloadDefinitions, WorkflowDefinition, PhaseEntry } from "./types";
-import { isSubworkflowRef } from "./types";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { WorkflowState, SetState, ReloadDefinitions, PhaseEntry } from "./types";
+import { isSubworkflowRef, isPhaseDefinition } from "./types";
 import { createInitialState, persistState, isActive, resolveActive } from "./state";
 import { loadWorkflows, findWorkflowByCommandName, resolveTemplate } from "./config";
 
@@ -19,8 +19,8 @@ export function registerWorkflowCommand(
     async getArgumentCompletions(prefix: string) {
       const workflows = await loadWorkflows();
       const names = Object.values(workflows)
-        .filter(w => (w.show ?? 'user') === 'user')
-        .map(w => w.commandName);
+        .filter((w) => (w.show ?? "user") === "user")
+        .map((w) => w.commandName);
       const filtered = names.filter((n) => n.startsWith(prefix));
       return filtered.length > 0 ? filtered.map((n) => ({ value: n, label: n })) : null;
     },
@@ -31,8 +31,8 @@ export function registerWorkflowCommand(
         // No args — show available workflows
         const workflows = await loadWorkflows(ctx.cwd);
         const entries = Object.entries(workflows)
-          .filter(([_, def]) => (def.show ?? 'user') === 'user')
-          .map(([key, def]) => `  ${def.commandName} — ${def.name}`);
+          .filter(([_key, def]) => (def.show ?? "user") === "user")
+          .map(([_key, def]) => `  ${def.commandName} — ${def.name}`);
         ctx.ui.notify(
           "Usage: /workflow {name} {description}\n\nAvailable workflows:\n" + entries.join("\n"),
           "info",
@@ -65,8 +65,11 @@ export function registerWorkflowCommand(
       const [workflowKey, definition] = match;
 
       // Safety check: reject workflows not shown to users
-      if (definition.show === 'workflows') {
-        ctx.ui.notify(`"${commandName}" is a subworkflow that can only run as part of another workflow. It cannot be started directly.`, "error");
+      if (definition.show === "workflows") {
+        ctx.ui.notify(
+          `"${commandName}" is a subworkflow that can only run as part of another workflow. It cannot be started directly.`,
+          "error",
+        );
         return;
       }
       const state = getState();
@@ -101,7 +104,12 @@ export function registerWorkflowCommand(
       // Resolve and send initial message
       let firstPhaseEntry: PhaseEntry = definition.phases[0];
       while (isSubworkflowRef(firstPhaseEntry)) {
+        if (!firstPhaseEntry.resolved) break;
         firstPhaseEntry = firstPhaseEntry.resolved.phases[0];
+      }
+      if (!isPhaseDefinition(firstPhaseEntry)) {
+        ctx.ui.notify("Could not resolve first phase of workflow.", "error");
+        return;
       }
       const firstPhase = firstPhaseEntry;
       const initialMessage = resolveTemplate(definition.initialMessage, {
@@ -128,7 +136,8 @@ export function registerCancelWorkflowCommand(
   setState: (s: WorkflowState | null) => void,
 ): void {
   pi.registerCommand("cancel-workflow", {
-    description: "Cancel the active workflow and jump to DONE. Bypasses the not-done reminder loop.",
+    description:
+      "Cancel the active workflow and jump to DONE. Bypasses the not-done reminder loop.",
     handler: async (_args, ctx) => {
       const state = getState();
       if (!state || !state.active) {

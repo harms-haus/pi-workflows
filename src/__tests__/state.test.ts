@@ -7,10 +7,7 @@ import {
   reconstructState,
   isActive,
 } from "../state";
-import type {
-  PhaseDefinition,
-  WorkflowDefinition,
-} from "../types";
+import type { PhaseDefinition, WorkflowDefinition } from "../types";
 
 // ── Test Fixture Definitions ──
 
@@ -47,6 +44,8 @@ const subPhase2: PhaseDefinition = {
 
 const subDef: WorkflowDefinition = {
   name: "Sub",
+  commandName: "sub",
+  initialMessage: "Start",
   show: "workflows",
   phases: [subPhase1, subPhase2],
 };
@@ -60,11 +59,7 @@ const parentDef: WorkflowDefinition = {
   name: "Parent",
   commandName: "par",
   initialMessage: "Start",
-  phases: [
-    phase1,
-    { subworkflow: true, workflowKey: "sub", resolved: subDef },
-    phase3,
-  ],
+  phases: [phase1, { subworkflow: true, workflowKey: "sub", resolved: subDef }, phase3],
 };
 
 const allDefs: Record<string, WorkflowDefinition> = {
@@ -74,7 +69,13 @@ const allDefs: Record<string, WorkflowDefinition> = {
 };
 
 // Helper for reconstructState
-function makeCtx(entries: Record<string, unknown>[]) {
+interface MockSessionEntry {
+  type: string;
+  customType?: string;
+  data?: unknown;
+}
+
+function makeCtx(entries: MockSessionEntry[]) {
   return { sessionManager: { getBranch: () => entries } };
 }
 
@@ -99,9 +100,7 @@ describe("createInitialState", () => {
 
   it("no currentPhaseIndex field", () => {
     const state = createInitialState("test-wf", "do something");
-    expect(
-      "currentPhaseIndex" in (state as Record<string, unknown>),
-    ).toBe(false);
+    expect("currentPhaseIndex" in (state as unknown as Record<string, unknown>)).toBe(false);
   });
 });
 
@@ -378,13 +377,9 @@ describe("reconstructState", () => {
     ]);
     const state = reconstructState(ctx);
     expect(state).not.toBeNull();
-    expect(state!.currentPath).toEqual([
-      { workflowKey: "linear", phaseIndex: 2 },
-    ]);
+    expect(state!.currentPath).toEqual([{ workflowKey: "linear", phaseIndex: 2 }]);
     // Should not have currentPhaseIndex anymore
-    expect(
-      "currentPhaseIndex" in (state as Record<string, unknown>),
-    ).toBe(false);
+    expect("currentPhaseIndex" in (state as unknown as Record<string, unknown>)).toBe(false);
   });
 
   it("new state with currentPath → no migration", () => {
@@ -407,9 +402,7 @@ describe("reconstructState", () => {
     ]);
     const state = reconstructState(ctx);
     expect(state).not.toBeNull();
-    expect(state!.currentPath).toEqual([
-      { workflowKey: "linear", phaseIndex: 1 },
-    ]);
+    expect(state!.currentPath).toEqual([{ workflowKey: "linear", phaseIndex: 1 }]);
     expect(state!.globalStepCount).toBe(3);
   });
 

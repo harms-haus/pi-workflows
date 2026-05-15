@@ -109,6 +109,8 @@ describe("buildContextPrompt", () => {
     };
     const subDef: WorkflowDefinition = {
       name: "Sub",
+      commandName: "sub",
+      initialMessage: "Start",
       show: "workflows",
       phases: [subPhase],
     };
@@ -116,10 +118,7 @@ describe("buildContextPrompt", () => {
       name: "Parent",
       commandName: "par",
       initialMessage: "Start",
-      phases: [
-        phase1,
-        { subworkflow: true, workflowKey: "sub", resolved: subDef },
-      ],
+      phases: [phase1, { subworkflow: true, workflowKey: "sub", resolved: subDef }],
     };
 
     // Simulate being inside the subworkflow at sub[0]
@@ -217,6 +216,8 @@ describe("collectAllProfiles (via buildContextPrompt)", () => {
     };
     const subDef: WorkflowDefinition = {
       name: "Sub",
+      commandName: "sub",
+      initialMessage: "Start",
       show: "workflows",
       phases: [subWithProfile],
     };
@@ -224,10 +225,7 @@ describe("collectAllProfiles (via buildContextPrompt)", () => {
       name: "Parent",
       commandName: "par",
       initialMessage: "Start",
-      phases: [
-        phaseWithProfiles,
-        { subworkflow: true, workflowKey: "sub", resolved: subDef },
-      ],
+      phases: [phaseWithProfiles, { subworkflow: true, workflowKey: "sub", resolved: subDef }],
     };
 
     // Active at phase 0 (phaseWithProfiles) of parent
@@ -292,9 +290,7 @@ describe("getPreviousPhaseName (via buildContextPrompt)", () => {
       ],
     };
     // At phase index 1 (Phase 2), previous should be Phase 1
-    const active = makeActive(defWithPrev, {}, [
-      { workflowKey: "test", phaseIndex: 1 },
-    ]);
+    const active = makeActive(defWithPrev, {}, [{ workflowKey: "test", phaseIndex: 1 }]);
     // Fix the currentPhase and nextPhase manually for index 1
     const correctedActive: ActiveWorkflow = {
       ...active,

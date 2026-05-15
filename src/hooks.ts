@@ -1,7 +1,16 @@
-import type { ExtensionAPI, ExtensionContext, ToolCallEvent, AgentEndEvent, } from "@earendil-works/pi-coding-agent";
-import type { WorkflowState, WorkflowDefinition, HookStateMutation, } from "./types";
+import type {
+  ExtensionAPI,
+  ExtensionContext,
+  ToolCallEvent,
+  AgentEndEvent,
+} from "@earendil-works/pi-coding-agent";
+import type { WorkflowState, WorkflowDefinition, HookStateMutation } from "./types";
 import { resolveActive, isActive } from "./state";
-import { buildContextPrompt, DEFAULT_NOT_DONE_REMINDER, DEFAULT_CANCELLED_MESSAGE } from "./prompts";
+import {
+  buildContextPrompt,
+  DEFAULT_NOT_DONE_REMINDER,
+  DEFAULT_CANCELLED_MESSAGE,
+} from "./prompts";
 import { resolveTemplate, getBlockedTools, getWhitelist } from "./config";
 
 // Module-level countdown handle — prevents stacked intervals when agent_end
@@ -48,7 +57,10 @@ export function updateStatus(
     const innerDef = definitions[top.workflowKey];
     const innerTotal = innerDef?.phases.length ?? 0;
     const innerCurrent = top.phaseIndex + 1;
-    const breadcrumbNames = active.breadcrumb.slice(0, -1).map((b) => b.name).join(" > ");
+    const breadcrumbNames = active.breadcrumb
+      .slice(0, -1)
+      .map((b) => b.name)
+      .join(" > ");
     const innerName = active.breadcrumb[active.breadcrumb.length - 1]?.name ?? "";
     statusText = `${breadcrumbNames} > ${innerName} — ${phase.emoji} ${phase.name} [${innerCurrent}/${innerTotal}]`;
   }
@@ -74,20 +86,31 @@ export function handleToolCall(
   const blockedTools = getBlockedTools(phase);
   const whitelist = getWhitelist(phase);
   if (toolConfig.blacklist && blockedTools.includes(toolName)) {
-    return { block: true, reason: resolveTemplate(
-      definition.blockReasonTemplate ?? DEFAULT_BLOCK_REASON,
-      { workflowName: definition.name, phaseName: phase.name, toolName, allowedTools: "all except: " + blockedTools.join(", "), },
-    ), };
+    return {
+      block: true,
+      reason: resolveTemplate(definition.blockReasonTemplate ?? DEFAULT_BLOCK_REASON, {
+        workflowName: definition.name,
+        phaseName: phase.name,
+        toolName,
+        allowedTools: "all except: " + blockedTools.join(", "),
+      }),
+    };
   }
   if (toolConfig.whitelist && whitelist && !whitelist.includes(toolName)) {
-    return { block: true, reason: resolveTemplate(
-      definition.blockReasonTemplate ?? DEFAULT_BLOCK_REASON,
-      { workflowName: definition.name, phaseName: phase.name, toolName, allowedTools: whitelist.join(", "), },
-    ), };
+    return {
+      block: true,
+      reason: resolveTemplate(definition.blockReasonTemplate ?? DEFAULT_BLOCK_REASON, {
+        workflowName: definition.name,
+        phaseName: phase.name,
+        toolName,
+        allowedTools: whitelist.join(", "),
+      }),
+    };
   }
 }
 
-const DEFAULT_BLOCK_REASON = `[workflow] The tool "{toolName}" is blocked during the {phaseName} phase.\n` +
+const DEFAULT_BLOCK_REASON =
+  `[workflow] The tool "{toolName}" is blocked during the {phaseName} phase.\n` +
   `Refer to the current phase instructions for allowed tools and approaches.\n` +
   `When finished, call workflow_step to advance to the next phase.`;
 
@@ -100,7 +123,7 @@ export function handleBeforeAgentStart(
   const active = resolveActive(state, definitions);
   if (!active) return;
   const prompt = buildContextPrompt(active);
-  return { message: { customType: "workflow:context", content: prompt, display: false, }, };
+  return { message: { customType: "workflow:context", content: prompt, display: false } };
 }
 
 // ── agent_end Hook ──
@@ -137,10 +160,12 @@ export function handleAgentEnd(
       // Cancellation — send cancelled message and unload
       const definition = definitions[state.workflowKey];
       if (definition) {
-        const msg = resolveTemplate(
-          definition.completionMessage ?? DEFAULT_CANCELLED_MESSAGE,
-          { workflowName: definition.name, taskDescription: state.taskDescription, taskId: state.taskId, phaseCount: String(definition.phases.length), },
-        );
+        const msg = resolveTemplate(definition.completionMessage ?? DEFAULT_CANCELLED_MESSAGE, {
+          workflowName: definition.name,
+          taskDescription: state.taskDescription,
+          taskId: state.taskId,
+          phaseCount: String(definition.phases.length),
+        });
         pi.sendMessage(
           { customType: "workflow:complete", content: msg, display: true },
           { triggerTurn: false },
@@ -165,23 +190,32 @@ export function handleAgentEnd(
     const active = resolveActive(state, definitions);
     if (!active) return noOp;
     const { definition, currentPhase } = active;
-    const reminder = resolveTemplate(
-      definition.notDoneReminder ?? DEFAULT_NOT_DONE_REMINDER,
-      { workflowName: definition.name, phaseName: currentPhase.name, phaseEmoji: currentPhase.emoji, phaseInstructions: currentPhase.instructions, taskDescription: state.taskDescription, taskId: state.taskId, workflowKey: state.workflowKey, },
-    );
+    const reminder = resolveTemplate(definition.notDoneReminder ?? DEFAULT_NOT_DONE_REMINDER, {
+      workflowName: definition.name,
+      phaseName: currentPhase.name,
+      phaseEmoji: currentPhase.emoji,
+      phaseInstructions: currentPhase.instructions,
+      taskDescription: state.taskDescription,
+      taskId: state.taskId,
+      workflowKey: state.workflowKey,
+    });
     // Show live countdown widget and auto-continue after 3 seconds
     if (ctx.hasUI) {
       // Clear any existing countdown to prevent stacked intervals
-      if (activeCountdown !== null) { clearInterval(activeCountdown); }
+      if (activeCountdown !== null) {
+        clearInterval(activeCountdown);
+      }
 
       let remaining = 3;
       const interval = setInterval(() => {
         try {
           remaining--;
           if (remaining > 0) {
-            ctx.ui.setWidget("workflow-countdown", [
-              `⏳ Auto-continuing in ${remaining}s... (type anything to interrupt)`,
-            ], { placement: "aboveEditor" });
+            ctx.ui.setWidget(
+              "workflow-countdown",
+              [`⏳ Auto-continuing in ${remaining}s... (type anything to interrupt)`],
+              { placement: "aboveEditor" },
+            );
           } else {
             clearInterval(interval);
             activeCountdown = null;
@@ -201,13 +235,19 @@ export function handleAgentEnd(
       activeCountdown = interval;
 
       // Show initial widget immediately (3s)
-      ctx.ui.setWidget("workflow-countdown", [
-        "⏳ Auto-continuing in 3s... (type anything to interrupt)",
-      ], { placement: "aboveEditor" });
+      ctx.ui.setWidget(
+        "workflow-countdown",
+        ["⏳ Auto-continuing in 3s... (type anything to interrupt)"],
+        { placement: "aboveEditor" },
+      );
     } else {
       // Fallback for RPC/print mode — no UI available
       pi.sendMessage(
-        { customType: "workflow:countdown", content: "Auto-continuing workflow in 3s... (type anything to interrupt)", display: true },
+        {
+          customType: "workflow:countdown",
+          content: "Auto-continuing workflow in 3s... (type anything to interrupt)",
+          display: true,
+        },
         { triggerTurn: false },
       );
       setTimeout(() => {

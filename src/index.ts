@@ -2,7 +2,13 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { WorkflowState, WorkflowDefinition } from "./types";
 import { loadWorkflows } from "./config";
 import { persistState, reconstructState } from "./state";
-import { updateStatus, handleToolCall, handleBeforeAgentStart, handleAgentEnd, clearActiveCountdown } from "./hooks";
+import {
+  updateStatus,
+  handleToolCall,
+  handleBeforeAgentStart,
+  handleAgentEnd,
+  clearActiveCountdown,
+} from "./hooks";
 import { registerWorkflowTool } from "./tool";
 import { registerWorkflowCommand, registerCancelWorkflowCommand } from "./command";
 import { registerRenderers } from "./renderers";
@@ -30,7 +36,7 @@ export default function (pi: ExtensionAPI): void {
     try {
       clearActiveCountdown(ctx);
       definitions = await loadWorkflows(ctx.cwd);
-      state = reconstructState(ctx);
+      state = reconstructState(ctx as Parameters<typeof reconstructState>[0]);
       updateStatus(ctx, state, definitions);
     } catch (e) {
       if (isStaleError(e)) return;
@@ -44,7 +50,7 @@ export default function (pi: ExtensionAPI): void {
       // Capture cwd synchronously before any async gap
       const cwd = ctx.cwd;
       definitions = await loadWorkflows(cwd);
-      state = reconstructState(ctx);
+      state = reconstructState(ctx as Parameters<typeof reconstructState>[0]);
       updateStatus(ctx, state, definitions);
     } catch (e) {
       if (isStaleError(e)) return;

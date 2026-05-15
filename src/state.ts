@@ -1,5 +1,11 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import type { WorkflowState, WorkflowDefinition, ActiveWorkflow, PhaseEntry, PhaseDefinition } from "./types";
+import type {
+  WorkflowState,
+  WorkflowDefinition,
+  ActiveWorkflow,
+  PhaseEntry,
+  PhaseDefinition,
+} from "./types";
 import { isSubworkflowRef, isPhaseDefinition } from "./types";
 
 // ── Constants ──
@@ -10,10 +16,7 @@ const TASK_ID_PREFIX = "wf-";
 /**
  * Create a fresh workflow state for a new workflow instance.
  */
-export function createInitialState(
-  workflowKey: string,
-  description: string,
-): WorkflowState {
+export function createInitialState(workflowKey: string, description: string): WorkflowState {
   return {
     active: true,
     workflowKey,
@@ -31,9 +34,7 @@ export function createInitialState(
 
 /** Get a display name from a PhaseEntry (handles both PhaseDefinition and SubworkflowReference). */
 function phaseEntryName(entry: PhaseEntry): string {
-  return isSubworkflowRef(entry)
-    ? (entry.resolved?.name ?? entry.workflowKey)
-    : entry.name;
+  return isSubworkflowRef(entry) ? (entry.resolved?.name ?? entry.workflowKey) : entry.name;
 }
 
 // ── State Advancement ──
@@ -52,9 +53,7 @@ export function advancePhase(
 
   const topDef = definitions[top.workflowKey];
   if (!topDef) {
-    console.warn(
-      `[pi-workflows] Workflow definition "${top.workflowKey}" not found.`,
-    );
+    console.warn(`[pi-workflows] Workflow definition "${top.workflowKey}" not found.`);
     return { advanced: false, from: "", to: null };
   }
 
@@ -147,9 +146,7 @@ export function resolveActive(
   // Walk the path stack to validate all segments
   for (const segment of state.currentPath) {
     if (!definitions[segment.workflowKey]) {
-      console.warn(
-        `[pi-workflows] Workflow definition "${segment.workflowKey}" not found.`,
-      );
+      console.warn(`[pi-workflows] Workflow definition "${segment.workflowKey}" not found.`);
       return null;
     }
   }
@@ -194,7 +191,7 @@ export function resolveActive(
       workflowKey: seg.workflowKey,
       name: segDef.name,
       phaseName: isInnermost ? currentPhase.name : segDef.name,
-      emoji: isInnermost ? currentPhase.emoji : '',
+      emoji: isInnermost ? currentPhase.emoji : "",
     };
   });
 
@@ -220,42 +217,50 @@ export function persistState(pi: ExtensionAPI, state: WorkflowState): void {
 interface SessionEntry {
   type: string;
   customType?: string;
-  data?: Record<string, unknown>;
+  data?: unknown;
 }
 
 /**
  * Reconstruct workflow state from the session branch.
  * Scans entries in reverse order and finds the most recent state entry.
  */
-export function reconstructState(ctx: { sessionManager: { getBranch: () => SessionEntry[] } }): WorkflowState | null {
+export function reconstructState(ctx: {
+  sessionManager: { getBranch: () => SessionEntry[] };
+}): WorkflowState | null {
   const branch = ctx.sessionManager.getBranch();
   for (let i = branch.length - 1; i >= 0; i--) {
     const entry = branch[i];
-    if (
-      entry.type === "custom" &&
-      entry.customType === STATE_ENTRY_TYPE &&
-      entry.data?.workflowKey != null
-    ) {
+    if (entry.type === "custom" && entry.customType === STATE_ENTRY_TYPE) {
+      const rawData = entry.data as Record<string, unknown> | undefined;
+      if (rawData?.workflowKey == null) continue;
       // Migration: old state has currentPhaseIndex, new state has currentPath
-      const data = entry.data as Record<string, unknown>;
+      const data = { ...rawData };
       if (data.currentPhaseIndex !== undefined && !data.currentPath) {
-        data.currentPath = [{ workflowKey: data.workflowKey as string, phaseIndex: data.currentPhaseIndex as number }];
+        data.currentPath = [
+          { workflowKey: data.workflowKey as string, phaseIndex: data.currentPhaseIndex as number },
+        ];
         delete data.currentPhaseIndex;
       }
       if (data.currentPath && data.globalStepCount === undefined) {
-        data.globalStepCount = ((data.currentPath as Array<{phaseIndex: number}>)[0]?.phaseIndex) ?? 0;
+        data.globalStepCount =
+          (data.currentPath as Array<{ phaseIndex: number }>)[0]?.phaseIndex ?? 0;
       }
 
       // Validate reconstructed state to prevent crashes from tampered data
       if (!Array.isArray(data.currentPath) || (data.currentPath as unknown[]).length === 0) {
-        console.warn('[pi-workflows] Invalid persisted state: empty currentPath. Discarding.');
+        console.warn("[pi-workflows] Invalid persisted state: empty currentPath. Discarding.");
         return null;
       }
       for (const seg of data.currentPath as Array<unknown>) {
-        if (typeof seg !== 'object' || seg === null ||
-            typeof (seg as Record<string, unknown>).workflowKey !== 'string' ||
-            typeof (seg as Record<string, unknown>).phaseIndex !== 'number') {
-          console.warn('[pi-workflows] Invalid persisted state: malformed path segment. Discarding.');
+        if (
+          typeof seg !== "object" ||
+          seg === null ||
+          typeof (seg as Record<string, unknown>).workflowKey !== "string" ||
+          typeof (seg as Record<string, unknown>).phaseIndex !== "number"
+        ) {
+          console.warn(
+            "[pi-workflows] Invalid persisted state: malformed path segment. Discarding.",
+          );
           return null;
         }
       }

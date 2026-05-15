@@ -56,8 +56,8 @@ export interface SubworkflowReference {
   subworkflow: true;
   /** The workflow key being referenced. */
   workflowKey: string;
-  /** Resolved workflow definition (populated at load time). */
-  resolved: WorkflowDefinition;
+  /** Resolved workflow definition (null until resolved during two-pass loading). */
+  resolved: WorkflowDefinition | null;
 }
 
 // ── Phase Entry Union ──
@@ -69,12 +69,12 @@ export type PhaseEntry = PhaseDefinition | SubworkflowReference;
 
 /** Returns true if the entry is a SubworkflowReference. */
 export function isSubworkflowRef(entry: PhaseEntry): entry is SubworkflowReference {
-  return 'subworkflow' in entry && entry.subworkflow === true;
+  return "subworkflow" in entry && entry.subworkflow === true;
 }
 
 /** Returns true if the entry is a plain PhaseDefinition (not a subworkflow reference). */
 export function isPhaseDefinition(entry: PhaseEntry): entry is PhaseDefinition {
-  return !('subworkflow' in entry);
+  return !("subworkflow" in entry);
 }
 
 // ── Workflow Definition ──

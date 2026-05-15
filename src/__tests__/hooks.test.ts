@@ -1,7 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { handleAgentEnd, clearActiveCountdown } from "../hooks";
+import {
+  handleAgentEnd,
+  clearActiveCountdown,
+  updateStatus,
+  handleToolCall,
+  handleBeforeAgentStart,
+} from "../hooks";
 import { createMockAPI, createMockContext } from "./helpers/mocks";
 import type { WorkflowState, WorkflowDefinition } from "../types";
+import type { AgentMessage } from "@earendil-works/pi-agent-core";
+import type { ToolCallEvent } from "@earendil-works/pi-coding-agent";
 
 // Use fake timers for countdown tests
 beforeEach(() => {
@@ -12,6 +20,11 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
 });
+
+// Helper to create minimal mock AgentMessage
+function mockMsg(stopReason: "stop" | "aborted"): AgentMessage {
+  return { role: "assistant", stopReason } as AgentMessage;
+}
 
 // Minimal active workflow state fixture
 function makeActiveState(): WorkflowState {
@@ -56,7 +69,8 @@ describe("clearActiveCountdown", () => {
 
     // Trigger countdown by calling handleAgentEnd
     handleAgentEnd(api, state, defs, ctx, {
-      messages: [{ role: "assistant", stopReason: "stop" }],
+      type: "agent_end" as const,
+      messages: [mockMsg("stop")],
     });
 
     expect(ctx.ui.setWidget).toHaveBeenCalledWith(
@@ -67,10 +81,7 @@ describe("clearActiveCountdown", () => {
 
     // Clear it
     clearActiveCountdown(ctx);
-    expect(ctx.ui.setWidget).toHaveBeenCalledWith(
-      "workflow-countdown",
-      undefined,
-    );
+    expect(ctx.ui.setWidget).toHaveBeenCalledWith("workflow-countdown", undefined);
 
     vi.advanceTimersByTime(5000);
     expect(api.sendUserMessage).not.toHaveBeenCalled();
@@ -96,7 +107,8 @@ describe("handleAgentEnd — countdown widget", () => {
     const defs = makeDefinition();
 
     handleAgentEnd(api, state, defs, ctx, {
-      messages: [{ role: "assistant", stopReason: "aborted" }],
+      type: "agent_end" as const,
+      messages: [mockMsg("aborted")],
     });
 
     expect(api.sendUserMessage).not.toHaveBeenCalled();
@@ -110,7 +122,8 @@ describe("handleAgentEnd — countdown widget", () => {
     const defs = makeDefinition();
 
     handleAgentEnd(api, state, defs, ctx, {
-      messages: [{ role: "assistant", stopReason: "stop" }],
+      type: "agent_end" as const,
+      messages: [mockMsg("stop")],
     });
 
     // Widget should appear immediately with 3s
@@ -138,24 +151,22 @@ describe("handleAgentEnd — countdown widget", () => {
 
     // Advance 1s → widget cleared and sendUserMessage called
     vi.advanceTimersByTime(1000);
-    expect(ctx.ui.setWidget).toHaveBeenCalledWith(
-      "workflow-countdown",
-      undefined,
-    );
+    expect(ctx.ui.setWidget).toHaveBeenCalledWith("workflow-countdown", undefined);
     expect(api.sendUserMessage).toHaveBeenCalled();
   });
 
   it("clears widget and handles gracefully when sendUserMessage throws during countdown", () => {
-    const { api } = createMockAPI();
+    const { api, sendUserMessage } = createMockAPI();
     const ctx = createMockContext();
     const state = makeActiveState();
     const defs = makeDefinition();
-    api.sendUserMessage.mockImplementation(() => {
+    sendUserMessage.mockImplementation(() => {
       throw new Error("Agent already processing");
     });
 
     handleAgentEnd(api, state, defs, ctx, {
-      messages: [{ role: "assistant", stopReason: "stop" }],
+      type: "agent_end" as const,
+      messages: [mockMsg("stop")],
     });
 
     // Widget shows 3s immediately
@@ -169,10 +180,7 @@ describe("handleAgentEnd — countdown widget", () => {
     vi.advanceTimersByTime(3000);
 
     // Widget should be cleared even though sendUserMessage threw
-    expect(ctx.ui.setWidget).toHaveBeenCalledWith(
-      "workflow-countdown",
-      undefined,
-    );
+    expect(ctx.ui.setWidget).toHaveBeenCalledWith("workflow-countdown", undefined);
     expect(api.sendUserMessage).toHaveBeenCalled();
   });
 
@@ -184,13 +192,14 @@ describe("handleAgentEnd — countdown widget", () => {
 
     // First agent_end starts countdown
     handleAgentEnd(api, state, defs, ctx, {
-      messages: [{ role: "assistant", stopReason: "stop" }],
+      type: "agent_end" as const,
+      messages: [mockMsg("stop")],
     });
-    const firstCallCount = ctx.ui.setWidget.mock.calls.length;
 
     // Second agent_end before countdown finishes
     handleAgentEnd(api, state, defs, ctx, {
-      messages: [{ role: "assistant", stopReason: "stop" }],
+      type: "agent_end" as const,
+      messages: [mockMsg("stop")],
     });
 
     // Widget should be reset to 3s (not continuing from previous countdown)
@@ -214,7 +223,8 @@ describe("handleAgentEnd — null state", () => {
     const defs = makeDefinition();
 
     handleAgentEnd(api, null, defs, ctx, {
-      messages: [{ role: "assistant", stopReason: "stop" }],
+      type: "agent_end" as const,
+      messages: [mockMsg("stop")],
     });
 
     expect(ctx.ui.setWidget).not.toHaveBeenCalled();
@@ -228,7 +238,8 @@ describe("handleAgentEnd — null state", () => {
     const defs = makeDefinition();
 
     const result = handleAgentEnd(api, state, defs, ctx, {
-      messages: [{ role: "assistant", stopReason: "stop" }],
+      type: "agent_end" as const,
+      messages: [mockMsg("stop")],
     });
 
     expect(result).toEqual({ unload: false, persist: false });
@@ -243,7 +254,8 @@ describe("handleAgentEnd — no-UI fallback", () => {
     const defs = makeDefinition();
 
     handleAgentEnd(api, state, defs, ctx, {
-      messages: [{ role: "assistant", stopReason: "stop" }],
+      type: "agent_end" as const,
+      messages: [mockMsg("stop")],
     });
 
     // Should use sendMessage for countdown (not setWidget)
@@ -260,5 +272,343 @@ describe("handleAgentEnd — no-UI fallback", () => {
     // Advance 3s
     vi.advanceTimersByTime(3000);
     expect(api.sendUserMessage).toHaveBeenCalled();
+  });
+});
+
+// ── updateStatus ──
+
+describe("updateStatus", () => {
+  it("clears status when state is null", () => {
+    const setStatus = vi.fn();
+    const ctx = { ui: { setStatus } };
+
+    updateStatus(ctx, null, {});
+
+    expect(setStatus).toHaveBeenCalledWith("workflow", undefined);
+  });
+
+  it("clears status when state.active is false", () => {
+    const setStatus = vi.fn();
+    const ctx = { ui: { setStatus } };
+    const state: WorkflowState = {
+      active: false,
+      workflowKey: "test-wf",
+      currentPath: [{ workflowKey: "test-wf", phaseIndex: 0 }],
+      globalStepCount: 0,
+      taskId: "task-1",
+      taskDescription: "desc",
+      startedAt: Date.now(),
+      completionNotified: false,
+      cancelled: false,
+    };
+
+    updateStatus(ctx, state, makeDefinition());
+
+    expect(setStatus).toHaveBeenCalledWith("workflow", undefined);
+  });
+
+  it("shows phase name for linear workflow (single path segment)", () => {
+    const setStatus = vi.fn();
+    const ctx = { ui: { setStatus } };
+    const defs: Record<string, WorkflowDefinition> = {
+      "test-wf": {
+        name: "My Workflow",
+        commandName: "test",
+        initialMessage: "Start",
+        phases: [
+          { id: "p1", name: "Phase 1", emoji: "🔍", instructions: "Do it" },
+          { id: "p2", name: "Phase 2", emoji: "✅", instructions: "Done" },
+        ],
+      },
+    };
+    const state: WorkflowState = {
+      active: true,
+      workflowKey: "test-wf",
+      currentPath: [{ workflowKey: "test-wf", phaseIndex: 0 }],
+      globalStepCount: 0,
+      taskId: "task-1",
+      taskDescription: "desc",
+      startedAt: Date.now(),
+      completionNotified: false,
+      cancelled: false,
+    };
+
+    updateStatus(ctx, state, defs);
+
+    expect(setStatus).toHaveBeenCalledWith("workflow", "My Workflow — 🔍 Phase 1 [1/2]");
+  });
+
+  it("shows breadcrumb format for nested subworkflow", () => {
+    const setStatus = vi.fn();
+    const ctx = { ui: { setStatus } };
+    const innerDef: WorkflowDefinition = {
+      name: "Inner Workflow",
+      commandName: "inner",
+      initialMessage: "Go",
+      phases: [
+        { id: "ip1", name: "Inner Phase", emoji: "⚙️", instructions: "Inner work" },
+        { id: "ip2", name: "Inner Phase 2", emoji: "🔧", instructions: "More" },
+      ],
+    };
+    const defs: Record<string, WorkflowDefinition> = {
+      "outer-wf": {
+        name: "Outer Workflow",
+        commandName: "outer",
+        initialMessage: "Start",
+        phases: [
+          {
+            subworkflow: true,
+            workflowKey: "inner-wf",
+            resolved: innerDef,
+          },
+        ],
+      },
+      "inner-wf": innerDef,
+    };
+    const state: WorkflowState = {
+      active: true,
+      workflowKey: "outer-wf",
+      currentPath: [
+        { workflowKey: "outer-wf", phaseIndex: 0 },
+        { workflowKey: "inner-wf", phaseIndex: 0 },
+      ],
+      globalStepCount: 1,
+      taskId: "task-1",
+      taskDescription: "desc",
+      startedAt: Date.now(),
+      completionNotified: false,
+      cancelled: false,
+    };
+
+    updateStatus(ctx, state, defs);
+
+    expect(setStatus).toHaveBeenCalledWith(
+      "workflow",
+      "Outer Workflow > Inner Workflow — ⚙️ Inner Phase [1/2]",
+    );
+  });
+
+  it("clears status when resolveActive returns null (missing definition)", () => {
+    const setStatus = vi.fn();
+    const ctx = { ui: { setStatus } };
+    const state: WorkflowState = {
+      active: true,
+      workflowKey: "nonexistent",
+      currentPath: [{ workflowKey: "nonexistent", phaseIndex: 0 }],
+      globalStepCount: 0,
+      taskId: "task-1",
+      taskDescription: "desc",
+      startedAt: Date.now(),
+      completionNotified: false,
+      cancelled: false,
+    };
+
+    updateStatus(ctx, state, {});
+
+    expect(setStatus).toHaveBeenCalledWith("workflow", undefined);
+  });
+});
+
+// ── handleToolCall ──
+
+describe("handleToolCall", () => {
+  function makeToolCallEvent(toolName: string): ToolCallEvent {
+    return { toolName } as ToolCallEvent;
+  }
+
+  it("allows all tools when state is null", () => {
+    const result = handleToolCall(makeToolCallEvent("bash"), null, makeDefinition());
+    expect(result).toBeUndefined();
+  });
+
+  it("allows all tools when state.active is false", () => {
+    const state: WorkflowState = {
+      active: false,
+      workflowKey: "test-wf",
+      currentPath: [{ workflowKey: "test-wf", phaseIndex: 0 }],
+      globalStepCount: 0,
+      taskId: "task-1",
+      taskDescription: "desc",
+      startedAt: Date.now(),
+      completionNotified: false,
+      cancelled: false,
+    };
+    const result = handleToolCall(makeToolCallEvent("bash"), state, makeDefinition());
+    expect(result).toBeUndefined();
+  });
+
+  it("blocks blacklisted tools with reason", () => {
+    const defs: Record<string, WorkflowDefinition> = {
+      "test-wf": {
+        name: "Test Workflow",
+        commandName: "test",
+        initialMessage: "Start",
+        phases: [
+          {
+            id: "p1",
+            name: "Phase 1",
+            emoji: "🔍",
+            instructions: "Do something",
+            tools: { blacklist: ["edit_file", "write_file"] },
+          },
+        ],
+      },
+    };
+    const state = makeActiveState();
+
+    const result = handleToolCall(makeToolCallEvent("edit_file"), state, defs);
+
+    expect(result).toEqual({
+      block: true,
+      reason: expect.stringContaining("edit_file"),
+    });
+    expect(result!.reason).toContain("blocked");
+  });
+
+  it("blocks non-whitelisted tools when whitelist is set", () => {
+    const defs: Record<string, WorkflowDefinition> = {
+      "test-wf": {
+        name: "Test Workflow",
+        commandName: "test",
+        initialMessage: "Start",
+        phases: [
+          {
+            id: "p1",
+            name: "Phase 1",
+            emoji: "🔍",
+            instructions: "Do something",
+            tools: { whitelist: ["read_file", "search"] },
+          },
+        ],
+      },
+    };
+    const state = makeActiveState();
+
+    const result = handleToolCall(makeToolCallEvent("edit_file"), state, defs);
+
+    expect(result).toEqual({
+      block: true,
+      reason: expect.stringContaining("edit_file"),
+    });
+  });
+
+  it("allows whitelisted tools", () => {
+    const defs: Record<string, WorkflowDefinition> = {
+      "test-wf": {
+        name: "Test Workflow",
+        commandName: "test",
+        initialMessage: "Start",
+        phases: [
+          {
+            id: "p1",
+            name: "Phase 1",
+            emoji: "🔍",
+            instructions: "Do something",
+            tools: { whitelist: ["read_file", "search"] },
+          },
+        ],
+      },
+    };
+    const state = makeActiveState();
+
+    const result = handleToolCall(makeToolCallEvent("read_file"), state, defs);
+    expect(result).toBeUndefined();
+  });
+
+  it("allows all tools when no tool config on phase", () => {
+    const state = makeActiveState();
+    const defs = makeDefinition();
+
+    const result = handleToolCall(makeToolCallEvent("anything"), state, defs);
+    expect(result).toBeUndefined();
+  });
+
+  it("always allows workflow_step tool", () => {
+    const defs: Record<string, WorkflowDefinition> = {
+      "test-wf": {
+        name: "Test Workflow",
+        commandName: "test",
+        initialMessage: "Start",
+        phases: [
+          {
+            id: "p1",
+            name: "Phase 1",
+            emoji: "🔍",
+            instructions: "Do something",
+            tools: { blacklist: ["workflow_step"] },
+          },
+        ],
+      },
+    };
+    const state = makeActiveState();
+
+    const result = handleToolCall(makeToolCallEvent("workflow_step"), state, defs);
+    expect(result).toBeUndefined();
+  });
+
+  it("allows non-blacklisted tools", () => {
+    const defs: Record<string, WorkflowDefinition> = {
+      "test-wf": {
+        name: "Test Workflow",
+        commandName: "test",
+        initialMessage: "Start",
+        phases: [
+          {
+            id: "p1",
+            name: "Phase 1",
+            emoji: "🔍",
+            instructions: "Do something",
+            tools: { blacklist: ["edit_file"] },
+          },
+        ],
+      },
+    };
+    const state = makeActiveState();
+
+    const result = handleToolCall(makeToolCallEvent("bash"), state, defs);
+    expect(result).toBeUndefined();
+  });
+});
+
+// ── handleBeforeAgentStart ──
+
+describe("handleBeforeAgentStart", () => {
+  it("returns undefined when state is null", () => {
+    const result = handleBeforeAgentStart(null, makeDefinition());
+    expect(result).toBeUndefined();
+  });
+
+  it("returns undefined when state.active is false", () => {
+    const state: WorkflowState = {
+      active: false,
+      workflowKey: "test-wf",
+      currentPath: [{ workflowKey: "test-wf", phaseIndex: 0 }],
+      globalStepCount: 0,
+      taskId: "task-1",
+      taskDescription: "desc",
+      startedAt: Date.now(),
+      completionNotified: false,
+      cancelled: false,
+    };
+    const result = handleBeforeAgentStart(state, makeDefinition());
+    expect(result).toBeUndefined();
+  });
+
+  it("returns context prompt message when state is active", () => {
+    const state = makeActiveState();
+    const defs = makeDefinition();
+
+    const result = handleBeforeAgentStart(state, defs);
+
+    expect(result).toEqual({
+      message: {
+        customType: "workflow:context",
+        content: expect.any(String),
+        display: false,
+      },
+    });
+    // Content should contain the task description and phase info
+    expect(result!.message.content).toContain("Test task");
+    expect(result!.message.content).toContain("Phase 1");
   });
 });
