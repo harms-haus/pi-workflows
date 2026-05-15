@@ -1,7 +1,7 @@
 import type { ExtensionAPI, ExtensionContext, ToolCallEvent, AgentEndEvent, } from "@earendil-works/pi-coding-agent";
 import type { WorkflowState, WorkflowDefinition, HookStateMutation, } from "./types";
 import { resolveActive, isActive } from "./state";
-import { buildContextPrompt, DEFAULT_NOT_DONE_REMINDER, DEFAULT_COMPLETION_MESSAGE, DEFAULT_CANCELLED_MESSAGE } from "./prompts";
+import { buildContextPrompt, DEFAULT_NOT_DONE_REMINDER, DEFAULT_CANCELLED_MESSAGE } from "./prompts";
 import { resolveTemplate, getBlockedTools, getWhitelist } from "./config";
 
 // Module-level countdown handle — prevents stacked intervals when agent_end
@@ -149,18 +149,9 @@ export function handleAgentEnd(
       ctx.ui.setStatus("workflow", undefined);
       return { unload: true, persist: false };
     }
-    // Normal completion
-    const definition = definitions[state.workflowKey];
-    if (definition) {
-      const msg = resolveTemplate(
-        definition.completionMessage ?? DEFAULT_COMPLETION_MESSAGE,
-        { workflowName: definition.name, taskDescription: state.taskDescription, taskId: state.taskId, phaseCount: String(definition.phases.length), },
-      );
-      pi.sendMessage(
-        { customType: "workflow:complete", content: msg, display: true },
-        { triggerTurn: false },
-      );
-    }
+    // Normal completion — tool response already confirms completion,
+    // so no extra sendMessage needed (it would be redundant and could
+    // restart the agent).
     state.completionNotified = true;
     ctx.ui.setStatus("workflow", undefined);
     return { unload: true, persist: true };

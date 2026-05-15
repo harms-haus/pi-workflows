@@ -63,13 +63,13 @@ export default function (pi: ExtensionAPI): void {
   pi.on("agent_end", async (event, ctx) => {
     try {
       const mutation = handleAgentEnd(pi, state, definitions, ctx, event);
+      if (mutation.persist && state) {
+        persistState(pi, state);
+      }
       if (mutation.unload) {
         state = null;
       } else if (mutation.state) {
         state = mutation.state;
-      }
-      if (mutation.persist && state) {
-        persistState(pi, state);
       }
     } catch (e) {
       if (isStaleError(e)) return;

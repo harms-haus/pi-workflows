@@ -155,8 +155,6 @@ export function registerWorkflowTool(
             details: { active: true },
           };
         }
-        persistState(pi, state!);
-
         // Workflow completed (top-level done)
         if (result.to === null) {
           const newState: WorkflowState = {
@@ -172,10 +170,7 @@ export function registerWorkflowTool(
             content: [
               {
                 type: "text",
-                text:
-                  `✓ Advanced: ${currentPhase.name} → DONE\n\n` +
-                  `🎉 **All phases complete!** ` +
-                  `Call workflow_step again or wait for the completion notification.`,
+                text: `✓ Advanced: ${currentPhase.name} → DONE\n\n🎉 **All phases complete!**`,
               },
             ],
             details: { advanced: true, from: currentPhase.name, to: "DONE" },
@@ -190,6 +185,7 @@ export function registerWorkflowTool(
             details: {},
           };
         }
+        persistState(pi, state!);
         ctx.ui.setStatus("workflow", undefined); // Will be re-set by turn_end hook
 
         const pathLenAfter = state!.currentPath.length;
