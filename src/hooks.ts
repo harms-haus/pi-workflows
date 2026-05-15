@@ -174,9 +174,18 @@ export function handleAgentEnd(
       ctx.ui.setStatus("workflow", undefined);
       return { unload: true, persist: false };
     }
-    // Normal completion — tool response already confirms completion,
-    // so no extra sendMessage needed (it would be redundant and could
-    // restart the agent).
+    // Normal completion — send visible feedback to the user
+    const completionDef = definitions[state.workflowKey];
+    if (completionDef) {
+      pi.sendMessage(
+        {
+          customType: "workflow:complete",
+          content: `✅ Workflow "${state.taskDescription}" complete!`,
+          display: true,
+        },
+        { triggerTurn: false },
+      );
+    }
     state.completionNotified = true;
     ctx.ui.setStatus("workflow", undefined);
     return { unload: true, persist: true };

@@ -1,6 +1,6 @@
 import { StringEnum } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { Text } from "@earendil-works/pi-tui";
+import { Container, Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
 import type { WorkflowState, GetState, SetState, GetDefinitions } from "./types";
 import { advancePhase, persistState, resolveActive, isActive, loopPhase } from "./state";
@@ -292,11 +292,25 @@ export function registerWorkflowTool(
     },
     renderResult(result, _opts, theme) {
       const text = result.content[0];
-      return new Text(
-        theme.fg("toolOutput", text?.type === "text" ? text.text : "(no output)"),
-        0,
-        0,
-      );
+      if (text?.type === "text") {
+        const t = text.text;
+        const isError =
+          t.startsWith("⚠️") ||
+          t.startsWith("Error:") ||
+          t.startsWith("Could not") ||
+          t.startsWith("Unknown action") ||
+          t.includes("not found");
+        const isCancel = t.includes("Confirm cancellation") || t.includes("cancelled");
+        const isComplete = t.includes("All phases complete");
+        if (isError || isCancel || isComplete) {
+          return new Text(
+            theme.fg("toolOutput", t),
+            0,
+            0,
+          );
+        }
+      }
+      return new Container();
     },
   });
 }
