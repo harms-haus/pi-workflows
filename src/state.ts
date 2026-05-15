@@ -107,7 +107,11 @@ export function advancePhase(
     const nextEntry = topDef.phases[top.phaseIndex];
     if (isSubworkflowRef(nextEntry)) {
       const concreteName = autoEnterSubworkflowRefs(state, nextEntry);
-      return { advanced: true, from: currentEntry.name, to: concreteName ?? phaseEntryName(nextEntry) };
+      return {
+        advanced: true,
+        from: currentEntry.name,
+        to: concreteName ?? phaseEntryName(nextEntry),
+      };
     }
     return { advanced: true, from: currentEntry.name, to: phaseEntryName(nextEntry) };
   }
@@ -134,7 +138,11 @@ export function advancePhase(
   }
   if (isSubworkflowRef(nextEntry)) {
     const concreteName = autoEnterSubworkflowRefs(state, nextEntry);
-    return { advanced: true, from: currentEntry.name, to: concreteName ?? phaseEntryName(nextEntry) };
+    return {
+      advanced: true,
+      from: currentEntry.name,
+      to: concreteName ?? phaseEntryName(nextEntry),
+    };
   }
   return { advanced: true, from: currentEntry.name, to: phaseEntryName(nextEntry) };
 }
