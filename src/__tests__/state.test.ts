@@ -143,13 +143,11 @@ describe("advancePhase — linear", () => {
 // ── advancePhase — enter subworkflow ──
 
 describe("advancePhase — enter subworkflow", () => {
-  it("at subworkflow ref phase, advance → pushes new segment", () => {
+  it("advancing to subworkflow ref → auto-enters and pushes new segment", () => {
     // Start parent workflow; phase 0 is phase1, advance once to reach subworkflow ref at index 1
     const state = createInitialState("parent", "desc");
     // currentPath[0] = { workflowKey: "parent", phaseIndex: 0 } → phase1
-    // advance to phase[1] which is the subworkflow ref
-    advancePhase(state, allDefs);
-    // Now at index 1 = subworkflow ref. Next advance enters the subworkflow.
+    // advance to phase[1] which is the subworkflow ref; auto-enters sub → sub[0]
     const result = advancePhase(state, allDefs);
     expect(result.advanced).toBe(true);
     expect(state.currentPath).toHaveLength(2);
@@ -204,24 +202,22 @@ describe("advancePhase — multi-level", () => {
   it("enter sub > advance to last > breakout > continue parent", () => {
     const state = createInitialState("parent", "desc");
 
-    // Step 1: advance from p1 to subworkflow ref (index 1)
-    advancePhase(state, allDefs);
-    // Step 2: enter subworkflow → sub[0]
+    // Step 1: advance from p1 → auto-enters subworkflow at sub[0]
     advancePhase(state, allDefs);
     expect(state.currentPath).toHaveLength(2);
     expect(state.currentPath[1].phaseIndex).toBe(0);
 
-    // Step 3: advance within sub → sub[1]
+    // Step 2: advance within sub → sub[1]
     advancePhase(state, allDefs);
     expect(state.currentPath[1].phaseIndex).toBe(1);
 
-    // Step 4: breakout from sub → back to parent at index 2 (phase3)
+    // Step 3: breakout from sub → back to parent at index 2 (phase3)
     const result = advancePhase(state, allDefs);
     expect(result.advanced).toBe(true);
     expect(state.currentPath).toHaveLength(1);
     expect(state.currentPath[0].phaseIndex).toBe(2);
 
-    // Step 5: advance on last parent phase → DONE
+    // Step 4: advance on last parent phase → DONE
     const final = advancePhase(state, allDefs);
     expect(final.advanced).toBe(true);
     expect(final.to).toBeNull();
@@ -262,8 +258,7 @@ describe("loopPhase", () => {
 
   it("inside nested workflow, only resets innermost scope", () => {
     const state = createInitialState("parent", "desc");
-    advancePhase(state, allDefs); // → subworkflow ref
-    advancePhase(state, allDefs); // enter sub → sub[0]
+    advancePhase(state, allDefs); // auto-enters sub → sub[0]
     advancePhase(state, allDefs); // → sub[1]
 
     // Loop inside subworkflow
@@ -303,8 +298,7 @@ describe("resolveActive — linear", () => {
 describe("resolveActive — nested", () => {
   it("multi-element path resolves to innermost phase", () => {
     const state = createInitialState("parent", "desc");
-    advancePhase(state, allDefs); // → subworkflow ref
-    advancePhase(state, allDefs); // enter sub → sub[0]
+    advancePhase(state, allDefs); // auto-enters sub → sub[0]
     const active = resolveActive(state, allDefs);
     expect(active).not.toBeNull();
     expect(active!.currentPhase.name).toBe("Sub Phase 1");
@@ -312,8 +306,7 @@ describe("resolveActive — nested", () => {
 
   it("breadcrumb array has correct entries", () => {
     const state = createInitialState("parent", "desc");
-    advancePhase(state, allDefs); // → subworkflow ref
-    advancePhase(state, allDefs); // enter sub → sub[0]
+    advancePhase(state, allDefs); // auto-enters sub → sub[0]
     const active = resolveActive(state, allDefs);
     expect(active).not.toBeNull();
     expect(active!.breadcrumb).toHaveLength(2);
@@ -457,6 +450,58 @@ describe("reconstructState", () => {
   });
 });
 
+// ── New fixtures for additional tests ──
+
+const sub2Def: WorkflowDefinition = {
+  name: "Sub2",
+  commandName: "sub2",
+  initialMessage: "Start",
+  show: "workflows",
+  phases: [{ id: "sp2a", name: "Sub2 Phase A", emoji: "🅰️", instructions: "A" }],
+};
+const parentTwoSubs: WorkflowDefinition = {
+  name: "ParentTwoSubs",
+  commandName: "pts",
+  initialMessage: "Start",
+  phases: [
+    phase1,
+    { subworkflow: true, workflowKey: "sub", resolved: subDef },
+    { subworkflow: true, workflowKey: "sub2", resolved: sub2Def },
+    phase3,
+  ],
+};
+
+const loopSub: WorkflowDefinition = {
+  name: "LoopSub",
+  commandName: "ls",
+  initialMessage: "Start",
+  show: "workflows",
+  phases: [subPhase1, subPhase2],
+  // loopable NOT set (defaults to allowed)
+};
+const noLoopParent: WorkflowDefinition = {
+  name: "NoLoopParent",
+  commandName: "nlp",
+  initialMessage: "Start",
+  loopable: false,
+  phases: [phase1, { subworkflow: true, workflowKey: "loopSub", resolved: loopSub }],
+};
+
+const noLoopSubDef: WorkflowDefinition = {
+  name: "NoLoopSub",
+  commandName: "nls",
+  initialMessage: "Start",
+  show: "workflows",
+  loopable: false,
+  phases: [subPhase1, subPhase2],
+};
+const loopParent: WorkflowDefinition = {
+  name: "LoopParent",
+  commandName: "lp",
+  initialMessage: "Start",
+  phases: [phase1, { subworkflow: true, workflowKey: "noLoopSub", resolved: noLoopSubDef }],
+};
+
 // ── isActive ──
 
 describe("isActive", () => {
@@ -473,5 +518,125 @@ describe("isActive", () => {
 
   it("null → false", () => {
     expect(isActive(null)).toBe(false);
+  });
+});
+
+// ── advancePhase — auto-enter concrete phase name ──
+
+describe("advancePhase — auto-enter concrete phase name", () => {
+  it("advancing to subworkflow ref returns concrete first phase name", () => {
+    const state = createInitialState("parent", "desc");
+    const result = advancePhase(state, allDefs); // auto-enters sub
+    expect(result.from).toBe("Phase 1");
+    expect(result.to).toBe("Sub Phase 1"); // concrete name, not subworkflow ref name
+  });
+
+  it("auto-enter return value has from=current phase, to=first concrete sub phase", () => {
+    const state = createInitialState("parent", "desc");
+    const result = advancePhase(state, allDefs);
+    expect(result.from).toBe("Phase 1");
+    expect(result.to).toBe("Sub Phase 1");
+  });
+});
+
+// ── advancePhase — breakout + auto-enter (two subworkflows) ──
+
+describe("advancePhase — breakout + auto-enter (two subworkflows)", () => {
+  const ptsDefs: Record<string, WorkflowDefinition> = {
+    pts: parentTwoSubs,
+    sub: subDef,
+    sub2: sub2Def,
+  };
+
+  it("advance through parent → sub → sub2 → phase3, verifying auto-enter at each transition", () => {
+    const state = createInitialState("pts", "desc");
+
+    // Step 1: advance from phase1 → auto-enters sub → sub[0]
+    const r1 = advancePhase(state, ptsDefs);
+    expect(r1.advanced).toBe(true);
+    expect(r1.from).toBe("Phase 1");
+    expect(r1.to).toBe("Sub Phase 1");
+    expect(state.currentPath).toHaveLength(2);
+    expect(state.currentPath[1]).toEqual({ workflowKey: "sub", phaseIndex: 0 });
+
+    // Step 2: advance within sub → sub[1]
+    const r2 = advancePhase(state, ptsDefs);
+    expect(r2.advanced).toBe(true);
+    expect(r2.from).toBe("Sub Phase 1");
+    expect(r2.to).toBe("Sub Phase 2");
+    expect(state.currentPath[1].phaseIndex).toBe(1);
+
+    // Step 3: breakout from sub, auto-enter sub2 → sub2[0]
+    const r3 = advancePhase(state, ptsDefs);
+    expect(r3.advanced).toBe(true);
+    expect(r3.from).toBe("Sub Phase 2");
+    expect(r3.to).toBe("Sub2 Phase A");
+    expect(state.currentPath).toHaveLength(2);
+    expect(state.currentPath[1]).toEqual({ workflowKey: "sub2", phaseIndex: 0 });
+
+    // Step 4: breakout from sub2 (only 1 phase) → parent phase3 (index 3)
+    const r4 = advancePhase(state, ptsDefs);
+    expect(r4.advanced).toBe(true);
+    expect(r4.from).toBe("Sub2 Phase A");
+    expect(r4.to).toBe("Phase 3");
+    expect(state.currentPath).toHaveLength(1);
+    expect(state.currentPath[0].phaseIndex).toBe(3);
+
+    // Step 5: advance on last parent phase → DONE
+    const r5 = advancePhase(state, ptsDefs);
+    expect(r5.advanced).toBe(true);
+    expect(r5.from).toBe("Phase 3");
+    expect(r5.to).toBeNull();
+    expect(state.active).toBe(false);
+  });
+
+  it("breakout + auto-enter shows correct transition", () => {
+    const state = createInitialState("pts", "desc");
+    advancePhase(state, ptsDefs); // auto-enters sub → sub[0]
+    advancePhase(state, ptsDefs); // → sub[1]
+    const result = advancePhase(state, ptsDefs); // breakout from sub, auto-enter sub2
+    expect(result.from).toBe("Sub Phase 2");
+    expect(result.to).toBe("Sub2 Phase A");
+    expect(state.currentPath).toHaveLength(2);
+    expect(state.currentPath[1]).toEqual({ workflowKey: "sub2", phaseIndex: 0 });
+  });
+});
+
+// ── loopPhase — subworkflow scope ──
+
+describe("loopPhase — subworkflow scope", () => {
+  it("after auto-enter, loop resets subworkflow scope", () => {
+    const state = createInitialState("parent", "desc");
+    advancePhase(state, allDefs); // auto-enters sub → sub[0]
+    advancePhase(state, allDefs); // → sub[1]
+    const result = loopPhase(state, allDefs);
+    expect("looped" in result && result.looped).toBe(true);
+    // Inner scope reset to 0
+    expect(state.currentPath[1].phaseIndex).toBe(0);
+    // Path still has 2 segments
+    expect(state.currentPath).toHaveLength(2);
+    // Parent phaseIndex unchanged
+    expect(state.currentPath[0].phaseIndex).toBe(1);
+  });
+});
+
+// ── loopPhase — loopable isolation ──
+
+describe("loopPhase — loopable isolation", () => {
+  it("parent loopable=false does not block subworkflow looping", () => {
+    const defs: Record<string, WorkflowDefinition> = { nlp: noLoopParent, loopSub };
+    const state = createInitialState("nlp", "desc");
+    advancePhase(state, defs); // auto-enters sub
+    advancePhase(state, defs); // → sub[1]
+    const result = loopPhase(state, defs);
+    expect("looped" in result && result.looped).toBe(true);
+  });
+
+  it("subworkflow loopable=false blocks looping even if parent allows it", () => {
+    const defs: Record<string, WorkflowDefinition> = { lp: loopParent, noLoopSub: noLoopSubDef };
+    const state = createInitialState("lp", "desc");
+    advancePhase(state, defs); // auto-enters sub
+    const result = loopPhase(state, defs);
+    expect("error" in result).toBe(true);
   });
 });

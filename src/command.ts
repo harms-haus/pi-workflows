@@ -88,6 +88,18 @@ export function registerWorkflowCommand(
 
       // Create new state
       const newState = createInitialState(workflowKey, description.trim());
+
+      // Auto-enter subworkflow if first phase is a SubworkflowRef
+      let currentEntry: PhaseEntry | undefined = definition.phases[0];
+      while (currentEntry && isSubworkflowRef(currentEntry)) {
+        if (!currentEntry.resolved) break; // safety: unresolved ref
+        newState.currentPath.push({
+          workflowKey: currentEntry.workflowKey,
+          phaseIndex: 0,
+        });
+        currentEntry = currentEntry.resolved.phases[0];
+      }
+
       setState(newState);
       persistState(pi, newState);
 
@@ -102,8 +114,8 @@ export function registerWorkflowCommand(
       );
 
       // Resolve and send initial message
-      let firstPhaseEntry: PhaseEntry = definition.phases[0];
-      while (isSubworkflowRef(firstPhaseEntry)) {
+      let firstPhaseEntry: PhaseEntry | undefined = definition.phases[0];
+      while (firstPhaseEntry && isSubworkflowRef(firstPhaseEntry)) {
         if (!firstPhaseEntry.resolved) break;
         firstPhaseEntry = firstPhaseEntry.resolved.phases[0];
       }

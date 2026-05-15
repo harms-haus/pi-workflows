@@ -5,6 +5,7 @@ import type {
   ActiveWorkflow,
   PhaseEntry,
   PhaseDefinition,
+  SubworkflowReference,
 } from "./types";
 import { isSubworkflowRef, isPhaseDefinition } from "./types";
 
@@ -35,6 +36,29 @@ export function createInitialState(workflowKey: string, description: string): Wo
 /** Get a display name from a PhaseEntry (handles both PhaseDefinition and SubworkflowReference). */
 function phaseEntryName(entry: PhaseEntry): string {
   return isSubworkflowRef(entry) ? (entry.resolved?.name ?? entry.workflowKey) : entry.name;
+}
+
+/**
+ * Auto-enter one or more nested SubworkflowRefs until a concrete PhaseDefinition is reached.
+ * Pushes segments onto state.currentPath and returns the first concrete phase name,
+ * or null if the subworkflow chain cannot be resolved.
+ */
+function autoEnterSubworkflowRefs(
+  state: WorkflowState,
+  entry: SubworkflowReference,
+): string | null {
+  if (!entry.resolved) return null;
+
+  state.currentPath.push({ workflowKey: entry.workflowKey, phaseIndex: 0 });
+
+  const firstEntry = entry.resolved.phases[0];
+  if (!firstEntry) return entry.workflowKey; // empty subworkflow
+
+  if (isSubworkflowRef(firstEntry)) {
+    return autoEnterSubworkflowRefs(state, firstEntry);
+  }
+
+  return firstEntry.name;
 }
 
 // ── State Advancement ──
@@ -81,6 +105,10 @@ export function advancePhase(
     top.phaseIndex += 1;
     state.globalStepCount++;
     const nextEntry = topDef.phases[top.phaseIndex];
+    if (isSubworkflowRef(nextEntry)) {
+      const concreteName = autoEnterSubworkflowRefs(state, nextEntry);
+      return { advanced: true, from: currentEntry.name, to: concreteName ?? phaseEntryName(nextEntry) };
+    }
     return { advanced: true, from: currentEntry.name, to: phaseEntryName(nextEntry) };
   }
 
@@ -103,6 +131,10 @@ export function advancePhase(
   if (!nextEntry) {
     // Parent is now past its last phase — next advancePhase call will handle it
     return { advanced: true, from: currentEntry.name, to: null };
+  }
+  if (isSubworkflowRef(nextEntry)) {
+    const concreteName = autoEnterSubworkflowRefs(state, nextEntry);
+    return { advanced: true, from: currentEntry.name, to: concreteName ?? phaseEntryName(nextEntry) };
   }
   return { advanced: true, from: currentEntry.name, to: phaseEntryName(nextEntry) };
 }
