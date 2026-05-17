@@ -7,66 +7,20 @@ import {
   reconstructState,
   isActive,
 } from "../state";
-import type { PhaseDefinition, WorkflowDefinition } from "../types";
+import {
+  STATE_PHASE_1 as phase1,
+  STATE_PHASE_2 as phase2,
+  STATE_PHASE_3 as phase3,
+  STATE_SUB_PHASE_1 as subPhase1,
+  STATE_SUB_PHASE_2 as subPhase2,
+  makeStateSubDef,
+  makeStateAllDefs,
+} from "./helpers/fixtures";
 
-// ── Test Fixture Definitions ──
+// ── Test Fixture Definitions (from shared helpers) ──
 
-const phase1: PhaseDefinition = {
-  id: "p1",
-  name: "Phase 1",
-  emoji: "1️⃣",
-  instructions: "Do phase 1",
-};
-const phase2: PhaseDefinition = {
-  id: "p2",
-  name: "Phase 2",
-  emoji: "2️⃣",
-  instructions: "Do phase 2",
-};
-const phase3: PhaseDefinition = {
-  id: "p3",
-  name: "Phase 3",
-  emoji: "3️⃣",
-  instructions: "Do phase 3",
-};
-const subPhase1: PhaseDefinition = {
-  id: "sp1",
-  name: "Sub Phase 1",
-  emoji: "🔨",
-  instructions: "Build",
-};
-const subPhase2: PhaseDefinition = {
-  id: "sp2",
-  name: "Sub Phase 2",
-  emoji: "👁️",
-  instructions: "Review",
-};
-
-const subDef: WorkflowDefinition = {
-  name: "Sub",
-  commandName: "sub",
-  initialMessage: "Start",
-  show: "workflows",
-  phases: [subPhase1, subPhase2],
-};
-const linearDef: WorkflowDefinition = {
-  name: "Linear",
-  commandName: "lin",
-  initialMessage: "Start",
-  phases: [phase1, phase2, phase3],
-};
-const parentDef: WorkflowDefinition = {
-  name: "Parent",
-  commandName: "par",
-  initialMessage: "Start",
-  phases: [phase1, { subworkflow: true, workflowKey: "sub", resolved: subDef }, phase3],
-};
-
-const allDefs: Record<string, WorkflowDefinition> = {
-  linear: linearDef,
-  parent: parentDef,
-  sub: subDef,
-};
+const subDef = makeStateSubDef();
+const allDefs = makeStateAllDefs();
 
 // Helper for reconstructState
 interface MockSessionEntry {

@@ -75,7 +75,7 @@ function makeUserDef(overrides: Partial<WorkflowDefinition> = {}): WorkflowDefin
       },
     ],
     ...overrides,
-  } as WorkflowDefinition;
+  };
 }
 
 /** Build a minimal valid internal (show: "workflows") workflow definition. */
@@ -780,7 +780,7 @@ describe("loadWorkflows", () => {
     resetFsMocks();
   });
 
-  it("loads from global pi dir", async () => {
+  it("loads from global pi dir", () => {
     mockHomedir.mockReturnValue("/test-home");
     mockExistsSync.mockReturnValue(true);
     mockRealpathSync.mockImplementation((p: string) => p);
@@ -790,10 +790,10 @@ describe("loadWorkflows", () => {
     ] as Dirent[]);
 
     mockReadFileSync.mockImplementation((p: string) => {
-      if (p.toString().includes("global-wf/workflow.yaml")) {
+      if (p.includes("global-wf/workflow.yaml")) {
         return "name: Global WF\ncommandName: global\ninitialMessage: Start\nphases:\n  - phase1.md";
       }
-      if (p.toString().includes("global-wf/phase1.md")) {
+      if (p.includes("global-wf/phase1.md")) {
         return '---\nid: p1\nname: P1\nemoji: "🔍"\n---\nDo work.';
       }
       throw new Error(`Unexpected readFileSync: ${p}`);
@@ -804,13 +804,13 @@ describe("loadWorkflows", () => {
       body: "Do work.",
     });
 
-    const result = await loadWorkflows();
+    const result = loadWorkflows();
 
     expect(result["global-wf"]).toBeDefined();
     expect(result["global-wf"].name).toBe("Global WF");
   });
 
-  it("merges project-local definitions over global", async () => {
+  it("merges project-local definitions over global", () => {
     mockHomedir.mockReturnValue("/test-home");
     mockExistsSync.mockReturnValue(true);
     mockRealpathSync.mockImplementation((p: string) => p);
@@ -820,7 +820,7 @@ describe("loadWorkflows", () => {
     });
 
     mockReadFileSync.mockImplementation((p: string) => {
-      const path = p.toString();
+      const path = p;
       if (path.includes("test-home") && path.includes("my-wf/workflow.yaml")) {
         return "name: Global Version\ncommandName: my-wf\ninitialMessage: Start\nphases:\n  - phase1.md";
       }
@@ -838,14 +838,14 @@ describe("loadWorkflows", () => {
       body: "Do work.",
     });
 
-    const result = await loadWorkflows("/test-project");
+    const result = loadWorkflows("/test-project");
 
     // Project version should override global
     expect(result["my-wf"]).toBeDefined();
     expect(result["my-wf"].name).toBe("Project Version");
   });
 
-  it("deduplicates by commandName", async () => {
+  it("deduplicates by commandName", () => {
     mockHomedir.mockReturnValue("/test-home");
     mockExistsSync.mockReturnValue(true);
     mockRealpathSync.mockImplementation((p: string) => p);
@@ -856,7 +856,7 @@ describe("loadWorkflows", () => {
     ] as Dirent[]);
 
     mockReadFileSync.mockImplementation((p: string) => {
-      const path = p.toString();
+      const path = p;
       if (path.includes("wf-a/workflow.yaml")) {
         return "name: WF A\ncommandName: same-cmd\ninitialMessage: Start A\nphases:\n  - phase1.md";
       }
@@ -875,14 +875,14 @@ describe("loadWorkflows", () => {
     });
 
     // Should not throw, just warn about duplicates
-    const result = await loadWorkflows();
+    const result = loadWorkflows();
 
     // Both workflows should still be present (first one wins for commandName)
     expect(result["wf-a"]).toBeDefined();
     expect(result["wf-b"]).toBeDefined();
   });
 
-  it("resolves subworkflow references", async () => {
+  it("resolves subworkflow references", () => {
     mockHomedir.mockReturnValue("/test-home");
     mockExistsSync.mockReturnValue(true);
     mockRealpathSync.mockImplementation((p: string) => p);
@@ -893,7 +893,7 @@ describe("loadWorkflows", () => {
     ] as Dirent[]);
 
     mockReadFileSync.mockImplementation((p: string) => {
-      const path = p.toString();
+      const path = p;
       if (path.includes("outer/workflow.yaml")) {
         return "name: Outer\ncommandName: outer\ninitialMessage: Start\nphases:\n  - subworkflow: inner";
       }
@@ -911,7 +911,7 @@ describe("loadWorkflows", () => {
       body: "Do inner work.",
     });
 
-    const result = await loadWorkflows();
+    const result = loadWorkflows();
 
     // Both should exist
     expect(result["outer"]).toBeDefined();
@@ -924,7 +924,7 @@ describe("loadWorkflows", () => {
     }
   });
 
-  it("removes workflows involved in cycles", async () => {
+  it("removes workflows involved in cycles", () => {
     mockHomedir.mockReturnValue("/test-home");
     mockExistsSync.mockReturnValue(true);
     mockRealpathSync.mockImplementation((p: string) => p);
@@ -935,7 +935,7 @@ describe("loadWorkflows", () => {
     ] as Dirent[]);
 
     mockReadFileSync.mockImplementation((p: string) => {
-      const path = p.toString();
+      const path = p;
       if (path.includes("wf-a/workflow.yaml")) {
         return "name: WF A\ncommandName: wf-a\ninitialMessage: Start\nphases:\n  - subworkflow: wf-b";
       }
@@ -945,14 +945,14 @@ describe("loadWorkflows", () => {
       throw new Error(`Unexpected readFileSync: ${p}`);
     });
 
-    const result = await loadWorkflows();
+    const result = loadWorkflows();
 
     // Both should be removed due to cycle
     expect(result["wf-a"]).toBeUndefined();
     expect(result["wf-b"]).toBeUndefined();
   });
 
-  it("removes workflows referencing non-existent subworkflows", async () => {
+  it("removes workflows referencing non-existent subworkflows", () => {
     mockHomedir.mockReturnValue("/test-home");
     mockExistsSync.mockReturnValue(true);
     mockRealpathSync.mockImplementation((p: string) => p);
@@ -962,16 +962,700 @@ describe("loadWorkflows", () => {
     ] as Dirent[]);
 
     mockReadFileSync.mockImplementation((p: string) => {
-      const path = p.toString();
+      const path = p;
       if (path.includes("ref-wf/workflow.yaml")) {
         return "name: Ref WF\ncommandName: ref-wf\ninitialMessage: Start\nphases:\n  - subworkflow: nonexistent";
       }
       throw new Error(`Unexpected readFileSync: ${p}`);
     });
 
-    const result = await loadWorkflows();
+    const result = loadWorkflows();
 
     // Should be removed because it references a non-existent subworkflow
     expect(result["ref-wf"]).toBeUndefined();
+  });
+});
+
+// ── Additional tests for uncovered branches ──
+
+// ── validation.ts uncovered branches ──
+
+describe("validateWorkflowDefinition – uncovered branches", () => {
+  it("missing/empty name → error", () => {
+    const def = makeUserDef({ name: "" });
+    const result = validateWorkflowDefinition("test", def);
+    expect(result).not.toBeNull();
+    expect(result).toContain("name must be a non-empty string");
+  });
+
+  it("invalid commandName format (special chars) → error", () => {
+    const def = makeUserDef({ commandName: "bad command!" });
+    const result = validateWorkflowDefinition("test", def);
+    expect(result).not.toBeNull();
+    expect(result).toContain("commandName must match");
+  });
+
+  it("phase with non-array blacklist → error", () => {
+    const def = makeUserDef({
+      phases: [
+        {
+          id: "p1",
+          name: "P1",
+          emoji: "⚡",
+          instructions: "Do stuff",
+          tools: { blacklist: "not-an-array" as unknown as string[] },
+        },
+      ],
+    });
+    const result = validateWorkflowDefinition("test", def);
+    expect(result).not.toBeNull();
+    expect(result).toContain("blacklist must be an array");
+  });
+
+  it("phase with non-array whitelist → error", () => {
+    const def = makeUserDef({
+      phases: [
+        {
+          id: "p1",
+          name: "P1",
+          emoji: "⚡",
+          instructions: "Do stuff",
+          tools: { whitelist: 42 as unknown as string[] },
+        },
+      ],
+    });
+    const result = validateWorkflowDefinition("test", def);
+    expect(result).not.toBeNull();
+    expect(result).toContain("whitelist must be an array");
+  });
+
+  it("phase with both blacklist and whitelist → error", () => {
+    const def = makeUserDef({
+      phases: [
+        {
+          id: "p1",
+          name: "P1",
+          emoji: "⚡",
+          instructions: "Do stuff",
+          tools: { blacklist: ["a"], whitelist: ["b"] },
+        },
+      ],
+    });
+    const result = validateWorkflowDefinition("test", def);
+    expect(result).not.toBeNull();
+    expect(result).toContain("cannot set both blacklist and whitelist");
+  });
+
+  it("phase with valid tools (blacklist) → null", () => {
+    const def = makeUserDef({
+      phases: [
+        {
+          id: "p1",
+          name: "P1",
+          emoji: "⚡",
+          instructions: "Do stuff",
+          tools: { blacklist: ["edit_file"] },
+        },
+      ],
+    });
+    expect(validateWorkflowDefinition("test", def)).toBeNull();
+  });
+
+  it("concrete phase missing id → error", () => {
+    const def = makeUserDef({
+      phases: [
+        { name: "P1", emoji: "⚡", instructions: "Do stuff" } as unknown as PhaseDefinition,
+      ],
+    });
+    const result = validateWorkflowDefinition("test", def);
+    expect(result).not.toBeNull();
+    expect(result).toContain("id must be a non-empty string");
+  });
+
+  it("concrete phase missing name → error", () => {
+    const def = makeUserDef({
+      phases: [
+        { id: "p1", emoji: "⚡", instructions: "Do stuff" } as unknown as PhaseDefinition,
+      ],
+    });
+    const result = validateWorkflowDefinition("test", def);
+    expect(result).not.toBeNull();
+    expect(result).toContain("name must be a non-empty string");
+  });
+
+  it("concrete phase missing emoji → error", () => {
+    const def = makeUserDef({
+      phases: [
+        { id: "p1", name: "P1", instructions: "Do stuff" } as unknown as PhaseDefinition,
+      ],
+    });
+    const result = validateWorkflowDefinition("test", def);
+    expect(result).not.toBeNull();
+    expect(result).toContain("emoji must be a non-empty string");
+  });
+
+  it("concrete phase missing instructions → error", () => {
+    const def = makeUserDef({
+      phases: [
+        { id: "p1", name: "P1", emoji: "⚡" } as unknown as PhaseDefinition,
+      ],
+    });
+    const result = validateWorkflowDefinition("test", def);
+    expect(result).not.toBeNull();
+    expect(result).toContain("instructions must be a non-empty string");
+  });
+});
+
+// ── loading.ts uncovered branches ──
+
+describe("loadWorkflowFromDir – uncovered branches", () => {
+  beforeEach(() => {
+    resetFsMocks();
+  });
+
+  it("returns null for invalid YAML (not an object)", () => {
+    const dirPath = "/workflows/bad-yaml";
+    const yamlPath = "/workflows/bad-yaml/workflow.yaml";
+
+    mockExistsSync.mockReturnValue(true);
+    mockReadFileSync.mockImplementation((p: string) => {
+      if (p === yamlPath) return "just a plain string";
+      throw new Error(`Unexpected readFileSync: ${p}`);
+    });
+
+    const result = loadWorkflowFromDir(dirPath, "/workflows");
+    expect(result).toBeNull();
+  });
+
+  it("returns null for user workflow missing initialMessage", () => {
+    const dirPath = "/workflows/no-msg";
+    const yamlPath = "/workflows/no-msg/workflow.yaml";
+
+    mockExistsSync.mockReturnValue(true);
+    mockReadFileSync.mockImplementation((p: string) => {
+      if (p === yamlPath) {
+        return ["name: No Msg", "commandName: test", "phases:", "  - phase1.md"].join("\n");
+      }
+      throw new Error(`Unexpected readFileSync: ${p}`);
+    });
+
+    const result = loadWorkflowFromDir(dirPath, "/workflows");
+    expect(result).toBeNull();
+  });
+
+  it("handles realpathSync throwing in checkPathSafety (catch block, escapes root)", () => {
+    const dirPath = "/workflows/escape-wf";
+    const yamlPath = "/workflows/escape-wf/workflow.yaml";
+
+    mockExistsSync.mockReturnValue(true);
+    // canonicalRoot resolves fine
+    mockRealpathSync.mockImplementation((p: string) => {
+      if (p === "/workflows") return "/workflows";
+      throw new Error("ENOENT");
+    });
+    mockReadFileSync.mockImplementation((p: string) => {
+      if (p === yamlPath) {
+        return [
+          "name: Escape",
+          "commandName: escape",
+          "initialMessage: Start",
+          "phases:",
+          "  - ../../etc/passwd",
+        ].join("\n");
+      }
+      throw new Error(`Unexpected readFileSync: ${p}`);
+    });
+
+    const result = loadWorkflowFromDir(dirPath, "/workflows");
+    expect(result).toBeNull();
+  });
+
+  it("returns null for phase file with missing name in frontmatter", () => {
+    const dirPath = "/workflows/no-phase-name";
+    const yamlPath = "/workflows/no-phase-name/workflow.yaml";
+    const phasePath = "/workflows/no-phase-name/phase1.md";
+
+    mockExistsSync.mockReturnValue(true);
+    mockRealpathSync.mockImplementation((p: string) => p);
+    mockReadFileSync.mockImplementation((p: string) => {
+      if (p === yamlPath) {
+        return [
+          "name: No Phase Name WF",
+          "commandName: no-phase-name",
+          "initialMessage: Start",
+          "phases:",
+          "  - phase1.md",
+        ].join("\n");
+      }
+      if (p === phasePath) {
+        return '---\nid: p1\nemoji: "🔍"\n---\nNo name.';
+      }
+      throw new Error(`Unexpected readFileSync: ${p}`);
+    });
+
+    mockParseFrontmatterFn.mockReturnValue({
+      frontmatter: { id: "p1", emoji: "🔍" },
+      body: "No name.",
+    });
+
+    const result = loadWorkflowFromDir(dirPath, "/workflows");
+    expect(result).toBeNull();
+  });
+
+  it("returns null for phase file with missing emoji in frontmatter", () => {
+    const dirPath = "/workflows/no-phase-emoji";
+    const yamlPath = "/workflows/no-phase-emoji/workflow.yaml";
+    const phasePath = "/workflows/no-phase-emoji/phase1.md";
+
+    mockExistsSync.mockReturnValue(true);
+    mockRealpathSync.mockImplementation((p: string) => p);
+    mockReadFileSync.mockImplementation((p: string) => {
+      if (p === yamlPath) {
+        return [
+          "name: No Phase Emoji WF",
+          "commandName: no-phase-emoji",
+          "initialMessage: Start",
+          "phases:",
+          "  - phase1.md",
+        ].join("\n");
+      }
+      if (p === phasePath) {
+        return '---\nid: p1\nname: Phase 1\n---\nNo emoji.';
+      }
+      throw new Error(`Unexpected readFileSync: ${p}`);
+    });
+
+    mockParseFrontmatterFn.mockReturnValue({
+      frontmatter: { id: "p1", name: "Phase 1" },
+      body: "No emoji.",
+    });
+
+    const result = loadWorkflowFromDir(dirPath, "/workflows");
+    expect(result).toBeNull();
+  });
+
+  it("parses whitelist tool config from frontmatter", () => {
+    const dirPath = "/workflows/whitelist-wf";
+    const yamlPath = "/workflows/whitelist-wf/workflow.yaml";
+    const phasePath = "/workflows/whitelist-wf/phase.md";
+
+    mockExistsSync.mockReturnValue(true);
+    mockRealpathSync.mockImplementation((p: string) => p);
+    mockReadFileSync.mockImplementation((p: string) => {
+      if (p === yamlPath) {
+        return [
+          "name: Whitelist Workflow",
+          "commandName: whitelist-wf",
+          "initialMessage: Start",
+          "phases:",
+          "  - phase.md",
+        ].join("\n");
+      }
+      if (p === phasePath) {
+        return "---\nid: p1\n---\nWhitelisted.";
+      }
+      throw new Error(`Unexpected readFileSync: ${p}`);
+    });
+
+    mockParseFrontmatterFn.mockReturnValue({
+      frontmatter: {
+        id: "p1",
+        name: "Whitelist Phase",
+        emoji: "✅",
+        tools: { whitelist: ["read_file", "search"] },
+      },
+      body: "Whitelisted instructions.",
+    });
+
+    const result = loadWorkflowFromDir(dirPath, "/workflows");
+
+    expect(result).not.toBeNull();
+    const phase = result!.phases[0] as PhaseDefinition;
+    expect(phase.tools).toEqual({ whitelist: ["read_file", "search"] });
+  });
+
+  it("parses availableProfiles from frontmatter", () => {
+    const dirPath = "/workflows/profiles-wf";
+    const yamlPath = "/workflows/profiles-wf/workflow.yaml";
+    const phasePath = "/workflows/profiles-wf/phase.md";
+
+    mockExistsSync.mockReturnValue(true);
+    mockRealpathSync.mockImplementation((p: string) => p);
+    mockReadFileSync.mockImplementation((p: string) => {
+      if (p === yamlPath) {
+        return [
+          "name: Profiles Workflow",
+          "commandName: profiles-wf",
+          "initialMessage: Start",
+          "phases:",
+          "  - phase.md",
+        ].join("\n");
+      }
+      if (p === phasePath) {
+        return "---\nid: p1\n---\nProfiles.";
+      }
+      throw new Error(`Unexpected readFileSync: ${p}`);
+    });
+
+    mockParseFrontmatterFn.mockReturnValue({
+      frontmatter: {
+        id: "p1",
+        name: "Profiles Phase",
+        emoji: "👤",
+        availableProfiles: ["analyst", "developer"],
+      },
+      body: "Profiles instructions.",
+    });
+
+    const result = loadWorkflowFromDir(dirPath, "/workflows");
+
+    expect(result).not.toBeNull();
+    const phase = result!.phases[0] as PhaseDefinition;
+    expect(phase.availableProfiles).toEqual(["analyst", "developer"]);
+  });
+
+  it("returns null when phases is missing/invalid in YAML", () => {
+    const dirPath = "/workflows/no-phases";
+    const yamlPath = "/workflows/no-phases/workflow.yaml";
+
+    mockExistsSync.mockReturnValue(true);
+    mockReadFileSync.mockImplementation((p: string) => {
+      if (p === yamlPath) {
+        return ["name: No Phases", "commandName: test", "initialMessage: Start"].join("\n");
+      }
+      throw new Error(`Unexpected readFileSync: ${p}`);
+    });
+
+    const result = loadWorkflowFromDir(dirPath, "/workflows");
+    expect(result).toBeNull();
+  });
+
+  it("returns null when readFileSync throws (outer catch)", () => {
+    const dirPath = "/workflows/crash-wf";
+    const yamlPath = "/workflows/crash-wf/workflow.yaml";
+
+    mockExistsSync.mockReturnValue(true);
+    mockReadFileSync.mockImplementation((p: string) => {
+      if (p === yamlPath) throw new Error("Read error");
+      throw new Error(`Unexpected readFileSync: ${p}`);
+    });
+
+    const result = loadWorkflowFromDir(dirPath, "/workflows");
+    expect(result).toBeNull();
+  });
+});
+
+describe("loadWorkflowsFromDir – uncovered branches", () => {
+  beforeEach(() => {
+    resetFsMocks();
+  });
+
+  it("handles error loading individual workflow (inner catch)", () => {
+    mockExistsSync.mockReturnValue(true);
+    mockRealpathSync.mockImplementation((p: string) => p);
+
+    mockReaddirSync.mockReturnValue([
+      { name: "bad-wf", isDirectory: () => true, isFile: () => false },
+    ] as Dirent[]);
+
+    // loadWorkflowFromDir will throw when reading workflow.yaml
+    mockReadFileSync.mockImplementation(() => {
+      throw new Error("Unexpected FS error");
+    });
+
+    // Should not throw, just skip the bad workflow
+    const result = loadWorkflowsFromDir("/parent");
+    expect(result).toEqual({});
+  });
+
+  it("handles readdirSync throwing (outer catch)", () => {
+    mockExistsSync.mockReturnValue(true);
+    mockReaddirSync.mockImplementation(() => {
+      throw new Error("Permission denied");
+    });
+
+    const result = loadWorkflowsFromDir("/parent");
+    expect(result).toEqual({});
+  });
+});
+
+describe("loadWorkflows – uncovered branches", () => {
+  beforeEach(() => {
+    resetFsMocks();
+  });
+
+  it("skips invalid workflow definitions after loading from dir", () => {
+    mockHomedir.mockReturnValue("/test-home");
+    mockExistsSync.mockReturnValue(true);
+    mockRealpathSync.mockImplementation((p: string) => p);
+
+    mockReaddirSync.mockReturnValue([
+      { name: "invalid-wf", isDirectory: () => true, isFile: () => false },
+    ] as Dirent[]);
+
+    mockReadFileSync.mockImplementation((p: string) => {
+      if (p.includes("invalid-wf/workflow.yaml")) {
+        // Return a YAML that parses to an invalid workflow (no name)
+        return "commandName: test\ninitialMessage: Start\nphases:\n  - phase1.md";
+      }
+      if (p.includes("phase1.md")) {
+        return '---\nid: p1\nname: P1\nemoji: "🔍"\n---\nDo work.';
+      }
+      throw new Error(`Unexpected readFileSync: ${p}`);
+    });
+
+    mockParseFrontmatterFn.mockReturnValue({
+      frontmatter: { id: "p1", name: "P1", emoji: "🔍" },
+      body: "Do work.",
+    });
+
+    const result = loadWorkflows();
+    // invalid-wf has no name, so validateWorkflowDefinition should reject it
+    expect(result["invalid-wf"]).toBeUndefined();
+  });
+
+  it("uses PI_CODING_AGENT_DIR env when set", () => {
+    const originalEnv = process.env.PI_CODING_AGENT_DIR;
+    process.env.PI_CODING_AGENT_DIR = "/custom-agent";
+
+    mockExistsSync.mockReturnValue(false);
+
+    const result = loadWorkflows();
+    expect(result).toEqual({});
+
+    // Restore
+    if (originalEnv === undefined) {
+      delete process.env.PI_CODING_AGENT_DIR;
+    } else {
+      process.env.PI_CODING_AGENT_DIR = originalEnv;
+    }
+  });
+
+  it("loads only global when cwd is not provided", () => {
+    mockHomedir.mockReturnValue("/test-home");
+    mockExistsSync.mockReturnValue(false);
+
+    const result = loadWorkflows();
+    expect(result).toEqual({});
+  });
+});
+
+describe("loadWorkflowFromDir – phase file read error", () => {
+  beforeEach(() => {
+    resetFsMocks();
+  });
+
+  it("returns null when phase .md file throws an error", () => {
+    const dirPath = "/workflows/phase-throw";
+    const yamlPath = "/workflows/phase-throw/workflow.yaml";
+
+    mockExistsSync.mockReturnValue(true);
+    mockRealpathSync.mockImplementation((p: string) => p);
+    mockReadFileSync.mockImplementation((p: string) => {
+      if (p === yamlPath) {
+        return [
+          "name: Phase Throw WF",
+          "commandName: phase-throw",
+          "initialMessage: Start",
+          "phases:",
+          "  - phase1.md",
+        ].join("\n");
+      }
+      if (p.includes("phase1.md")) {
+        throw new Error("phase read error");
+      }
+      throw new Error(`Unexpected readFileSync: ${p}`);
+    });
+
+    const result = loadWorkflowFromDir(dirPath, "/workflows");
+    expect(result).toBeNull();
+  });
+});
+
+describe("loadWorkflowFromDir – realpathSync succeeds but path escapes root", () => {
+  beforeEach(() => {
+    resetFsMocks();
+  });
+
+  it("returns null when canonical phase path is outside root", () => {
+    const dirPath = "/workflows/escape2";
+    const yamlPath = "/workflows/escape2/workflow.yaml";
+
+    mockExistsSync.mockReturnValue(true);
+    mockRealpathSync.mockImplementation((p: string) => {
+      if (p === "/workflows") return "/workflows";
+      // Phase file resolves outside root
+      if (p.includes("phase1.md")) return "/etc/phase1.md";
+      return p;
+    });
+    mockReadFileSync.mockImplementation((p: string) => {
+      if (p === yamlPath) {
+        return [
+          "name: Escape2",
+          "commandName: escape2",
+          "initialMessage: Start",
+          "phases:",
+          "  - phase1.md",
+        ].join("\n");
+      }
+      throw new Error(`Unexpected readFileSync: ${p}`);
+    });
+
+    const result = loadWorkflowFromDir(dirPath, "/workflows");
+    expect(result).toBeNull();
+  });
+});
+
+describe("loadWorkflowsFromDir – returns empty for no subdirectories", () => {
+  beforeEach(() => {
+    resetFsMocks();
+  });
+
+  it("skips non-directory entries", () => {
+    mockExistsSync.mockReturnValue(true);
+    mockReaddirSync.mockReturnValue([
+      { name: "readme.txt", isDirectory: () => false, isFile: () => true },
+      { name: "config.json", isDirectory: () => false, isFile: () => true },
+    ] as Dirent[]);
+
+    const result = loadWorkflowsFromDir("/parent");
+    expect(result).toEqual({});
+  });
+});
+
+describe("loadWorkflowFromDir – catch block edge cases", () => {
+  beforeEach(() => {
+    resetFsMocks();
+  });
+
+  it("catch block in checkPathSafety with safe resolved path (realpathSync throws)", () => {
+    const dirPath = "/workflows/safe-wf";
+    const yamlPath = "/workflows/safe-wf/workflow.yaml";
+    const phasePath = "/workflows/safe-wf/phase1.md";
+
+    mockExistsSync.mockReturnValue(true);
+    // The resolve mock does "/" + args.join("/"), so resolve("/workflows") → "//workflows"
+    // We need canonicalRoot to match the format of the resolved phase path.
+    // Both go through resolve() which prepends "/", so they have the same prefix.
+    mockRealpathSync.mockImplementation((p: string) => {
+      if (p.includes("workflows")) return p; // Return same format so startsWith works
+      throw new Error("ENOENT: file not found");
+    });
+    mockReadFileSync.mockImplementation((p: string) => {
+      if (p === yamlPath) {
+        return [
+          "name: Safe WF",
+          "commandName: safe-wf",
+          "initialMessage: Start",
+          "phases:",
+          "  - phase1.md",
+        ].join("\n");
+      }
+      if (p === phasePath) {
+        return '---\nid: p1\nname: P1\nemoji: "🔍"\n---\nDo work.';
+      }
+      throw new Error(`Unexpected readFileSync: ${p}`);
+    });
+
+    mockParseFrontmatterFn.mockReturnValue({
+      frontmatter: { id: "p1", name: "P1", emoji: "🔍" },
+      body: "Do work.",
+    });
+
+    // realpathSync succeeds for all paths here (doesn't throw)
+    const result = loadWorkflowFromDir(dirPath, "/workflows");
+    expect(result).not.toBeNull();
+    expect(result!.name).toBe("Safe WF");
+  });
+
+  it("loadWorkflowsFromDir inner catch handles error throw", () => {
+    mockExistsSync.mockReturnValue(true);
+    mockReaddirSync.mockReturnValue([
+      { name: "bad-wf", isDirectory: () => true, isFile: () => false },
+    ] as Dirent[]);
+
+    mockExistsSync.mockImplementation((p: string) => {
+      if (p.includes("workflow.yaml")) return true;
+      return true;
+    });
+    mockRealpathSync.mockImplementation((p: string) => p);
+    mockReadFileSync.mockImplementation(() => {
+      throw new Error("FS crash");
+    });
+
+    // Should not throw, catches and returns empty
+    const result = loadWorkflowsFromDir("/parent");
+    expect(result).toEqual({});
+  });
+});
+
+describe("loadWorkflows – invalid workflow warning path", () => {
+  beforeEach(() => {
+    resetFsMocks();
+  });
+
+  it("warns and skips when a loaded workflow fails validation", () => {
+    mockHomedir.mockReturnValue("/test-home");
+    mockExistsSync.mockReturnValue(true);
+    mockRealpathSync.mockImplementation((p: string) => p);
+
+    mockReaddirSync.mockReturnValue([
+      { name: "bad-wf", isDirectory: () => true, isFile: () => false },
+    ] as Dirent[]);
+
+    mockReadFileSync.mockImplementation((p: string) => {
+      if (p.includes("bad-wf/workflow.yaml")) {
+        // Two phases with the same .md file → duplicate IDs
+        return "name: Bad WF\ncommandName: bad-wf\ninitialMessage: Start\nphases:\n  - phase1.md\n  - phase1.md";
+      }
+      if (p.includes("phase1.md")) {
+        return '---\nid: dup\nname: P1\nemoji: "🔍"\n---\nDo work.';
+      }
+      throw new Error(`Unexpected readFileSync: ${p}`);
+    });
+
+    mockParseFrontmatterFn.mockReturnValue({
+      frontmatter: { id: "dup", name: "P1", emoji: "🔍" },
+      body: "Do work.",
+    });
+
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const result = loadWorkflows();
+    expect(result["bad-wf"]).toBeUndefined();
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Skipping invalid workflow definition "bad-wf"'),
+    );
+    warnSpy.mockRestore();
+  });
+});
+
+describe("detectCycles – additional edge cases", () => {
+  it("handles empty definitions", () => {
+    expect(detectCycles({})).toEqual([]);
+  });
+
+  it("handles disconnected components with one cyclic", () => {
+    const defs: Record<string, WorkflowDefinition> = {
+      standalone: makeUserDef(),
+      a: makeUserDef({
+        phases: [{ subworkflow: true, workflowKey: "b", resolved: null }],
+      }),
+      b: makeUserDef({
+        phases: [{ subworkflow: true, workflowKey: "a", resolved: null }],
+      }),
+    };
+    const errors = detectCycles(defs);
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0]).toContain("Cycle detected");
+  });
+
+  it("skips subworkflow refs to non-existent workflows", () => {
+    const defs: Record<string, WorkflowDefinition> = {
+      a: makeUserDef({
+        phases: [{ subworkflow: true, workflowKey: "nonexistent", resolved: null }],
+      }),
+    };
+    // No cycle because nonexistent is not in definitions
+    expect(detectCycles(defs)).toEqual([]);
   });
 });

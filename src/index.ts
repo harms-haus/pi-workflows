@@ -27,16 +27,16 @@ export default function (pi: ExtensionAPI): void {
     state = s;
   };
   const getDefinitions = () => definitions;
-  const reloadDefinitions = async () => {
-    definitions = await loadWorkflows();
-    return definitions;
+  const reloadDefinitions = () => {
+    definitions = loadWorkflows();
+    return Promise.resolve(definitions);
   };
 
-  pi.on("session_start", async (_event, ctx) => {
+  pi.on("session_start", (_event, ctx) => {
     try {
       clearActiveCountdown(ctx);
-      definitions = await loadWorkflows(ctx.cwd);
-      state = reconstructState(ctx as Parameters<typeof reconstructState>[0]);
+      definitions = loadWorkflows(ctx.cwd);
+      state = reconstructState(ctx);
       updateStatus(ctx, state, definitions);
     } catch (e) {
       if (isStaleError(e)) return;
@@ -44,13 +44,13 @@ export default function (pi: ExtensionAPI): void {
     }
   });
 
-  pi.on("session_tree", async (_event, ctx) => {
+  pi.on("session_tree", (_event, ctx) => {
     try {
       clearActiveCountdown(ctx);
       // Capture cwd synchronously before any async gap
       const cwd = ctx.cwd;
-      definitions = await loadWorkflows(cwd);
-      state = reconstructState(ctx as Parameters<typeof reconstructState>[0]);
+      definitions = loadWorkflows(cwd);
+      state = reconstructState(ctx);
       updateStatus(ctx, state, definitions);
     } catch (e) {
       if (isStaleError(e)) return;
@@ -58,15 +58,15 @@ export default function (pi: ExtensionAPI): void {
     }
   });
 
-  pi.on("tool_call", async (event, _ctx) => {
+  pi.on("tool_call", (event, _ctx) => {
     return handleToolCall(event, state, definitions);
   });
 
-  pi.on("before_agent_start", async (_event, _ctx) => {
+  pi.on("before_agent_start", (_event, _ctx) => {
     return handleBeforeAgentStart(state, definitions);
   });
 
-  pi.on("agent_end", async (event, ctx) => {
+  pi.on("agent_end", (event, ctx) => {
     try {
       const mutation = handleAgentEnd(pi, state, definitions, ctx, event);
       if (mutation.persist && state) {
@@ -83,7 +83,7 @@ export default function (pi: ExtensionAPI): void {
     }
   });
 
-  pi.on("turn_end", async (_event, ctx) => {
+  pi.on("turn_end", (_event, ctx) => {
     try {
       updateStatus(ctx, state, definitions);
     } catch (e) {

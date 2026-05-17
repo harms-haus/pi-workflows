@@ -1,8 +1,53 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import type { WorkflowState, SetState, ReloadDefinitions, PhaseEntry } from "./types";
-import { isSubworkflowRef, isPhaseDefinition } from "./types";
-import { createInitialState, persistState, isActive, resolveActive } from "./state";
+import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
+import type { WorkflowState, SetState, ReloadDefinitions, WorkflowDefinition } from "./types";
+import { isSubworkflowRef } from "./types";
+import {
+  createInitialState,
+  persistState,
+  isActive,
+  resolveActive,
+  autoEnterSubworkflowRefs,
+  resolveFirstPhase,
+} from "./state";
 import { loadWorkflows, findWorkflowByCommandName, resolveTemplate } from "./config";
+
+/** Show available workflows to the user. */
+function showAvailableWorkflows(ctx: ExtensionCommandContext): void {
+  const workflows = loadWorkflows(ctx.cwd);
+  const entries = Object.entries(workflows)
+    .filter(([_key, def]) => (def.show ?? "user") === "user")
+    .map(([_key, def]) => `  ${def.commandName} — ${def.name}`);
+  ctx.ui.notify(
+    "Usage: /workflow {name} {description}\n\nAvailable workflows:\n" + entries.join("\n"),
+    "info",
+  );
+}
+
+/** Set the session name and send the initial workflow message. */
+function startWorkflowSession(
+  pi: ExtensionAPI,
+  definition: WorkflowDefinition,
+  workflowKey: string,
+  description: string,
+): void {
+  const prefix = definition.sessionNamePrefix ?? "Workflow: ";
+  const maxLen = definition.sessionNameMaxLength ?? 50;
+  pi.setSessionName(
+    `${prefix}${description.slice(0, maxLen)}${description.length > maxLen ? "…" : ""}`,
+  );
+  const firstPhase = resolveFirstPhase(definition.phases);
+  if (!firstPhase) return;
+  const initialMessage = resolveTemplate(definition.initialMessage, {
+    workflowName: definition.name,
+    workflowKey,
+    description,
+    firstPhaseId: firstPhase.id,
+    firstPhaseName: firstPhase.name,
+    firstPhaseEmoji: firstPhase.emoji,
+    firstPhaseProfiles: firstPhase.availableProfiles?.join(", ") ?? "(none)",
+  });
+  pi.sendUserMessage(initialMessage);
+}
 
 /**
  * Register the /workflow command.
@@ -16,8 +61,8 @@ export function registerWorkflowCommand(
 ): void {
   pi.registerCommand("workflow", {
     description: "Start a configured workflow. Usage: /workflow {name} {description}",
-    async getArgumentCompletions(prefix: string) {
-      const workflows = await loadWorkflows();
+    getArgumentCompletions(prefix: string) {
+      const workflows = loadWorkflows();
       const names = Object.values(workflows)
         .filter((w) => (w.show ?? "user") === "user")
         .map((w) => w.commandName);
@@ -26,17 +71,10 @@ export function registerWorkflowCommand(
     },
     handler: async (args, ctx) => {
       // Parse: split on first whitespace to get commandName and description
-      const parts = args?.trim().match(/^(\S+)\s*(.*)/s);
+      const input = typeof args === "string" ? args : "";
+      const parts = input.trim().match(/^(\S+)\s*(.*)/s);
       if (!parts) {
-        // No args — show available workflows
-        const workflows = await loadWorkflows(ctx.cwd);
-        const entries = Object.entries(workflows)
-          .filter(([_key, def]) => (def.show ?? "user") === "user")
-          .map(([_key, def]) => `  ${def.commandName} — ${def.name}`);
-        ctx.ui.notify(
-          "Usage: /workflow {name} {description}\n\nAvailable workflows:\n" + entries.join("\n"),
-          "info",
-        );
+        showAvailableWorkflows(ctx);
         return;
       }
 
@@ -78,7 +116,7 @@ export function registerWorkflowCommand(
       if (isActive(state)) {
         const active = resolveActive(state, definitions);
         const phaseName = active ? active.currentPhase.name : "unknown";
-        const existingDesc = state?.taskDescription ?? "unknown";
+        const existingDesc = state.taskDescription;
         const ok = await ctx.ui.confirm(
           "Workflow already active",
           `Phase: ${phaseName}\nTask: ${existingDesc}\n\nStart a new one?`,
@@ -90,50 +128,15 @@ export function registerWorkflowCommand(
       const newState = createInitialState(workflowKey, description.trim());
 
       // Auto-enter subworkflow if first phase is a SubworkflowRef
-      let currentEntry: PhaseEntry | undefined = definition.phases[0];
-      while (currentEntry && isSubworkflowRef(currentEntry)) {
-        if (!currentEntry.resolved) break; // safety: unresolved ref
-        newState.currentPath.push({
-          workflowKey: currentEntry.workflowKey,
-          phaseIndex: 0,
-        });
-        currentEntry = currentEntry.resolved.phases[0];
+      const firstEntry = definition.phases[0];
+      if (isSubworkflowRef(firstEntry)) {
+        autoEnterSubworkflowRefs(newState, firstEntry);
       }
 
       setState(newState);
       persistState(pi, newState);
-
-      // Update status
-      ctx.ui.setStatus("workflow", undefined); // Will be set by turn_end hook after first turn
-
-      // Set session name
-      const prefix = definition.sessionNamePrefix ?? "Workflow: ";
-      const maxLen = definition.sessionNameMaxLength ?? 50;
-      pi.setSessionName(
-        `${prefix}${description.trim().slice(0, maxLen)}${description.trim().length > maxLen ? "…" : ""}`,
-      );
-
-      // Resolve and send initial message
-      let firstPhaseEntry: PhaseEntry | undefined = definition.phases[0];
-      while (firstPhaseEntry && isSubworkflowRef(firstPhaseEntry)) {
-        if (!firstPhaseEntry.resolved) break;
-        firstPhaseEntry = firstPhaseEntry.resolved.phases[0];
-      }
-      if (!isPhaseDefinition(firstPhaseEntry)) {
-        ctx.ui.notify("Could not resolve first phase of workflow.", "error");
-        return;
-      }
-      const firstPhase = firstPhaseEntry;
-      const initialMessage = resolveTemplate(definition.initialMessage, {
-        workflowName: definition.name,
-        workflowKey,
-        description: description.trim(),
-        firstPhaseId: firstPhase.id,
-        firstPhaseName: firstPhase.name,
-        firstPhaseEmoji: firstPhase.emoji,
-        firstPhaseProfiles: firstPhase.availableProfiles?.join(", ") ?? "(none)",
-      });
-      pi.sendUserMessage(initialMessage);
+      ctx.ui.setStatus("workflow", undefined);
+      startWorkflowSession(pi, definition, workflowKey, description.trim());
     },
   });
 }
@@ -150,11 +153,11 @@ export function registerCancelWorkflowCommand(
   pi.registerCommand("cancel-workflow", {
     description:
       "Cancel the active workflow and jump to DONE. Bypasses the not-done reminder loop.",
-    handler: async (_args, ctx) => {
+    handler: (_args, ctx) => {
       const state = getState();
       if (!state || !state.active) {
         ctx.ui.notify("No active workflow to cancel.", "info");
-        return;
+        return Promise.resolve();
       }
 
       // Jump straight to DONE state
@@ -182,6 +185,7 @@ export function registerCancelWorkflowCommand(
       setState(null);
 
       ctx.ui.notify("Workflow cancelled.", "info");
+      return Promise.resolve();
     },
   });
 }

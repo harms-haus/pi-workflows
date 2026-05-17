@@ -29,7 +29,11 @@ pi-workflows/
 ├── src/
 │   ├── index.ts              # Extension entry point & event wiring
 │   ├── types.ts              # Type definitions, interfaces, type guards
-│   ├── config.ts             # Workflow loading, validation, template resolution
+│   ├── config/               # Workflow loading, validation, template resolution
+│   │   ├── index.ts          #   Re-exports from sub-modules
+│   │   ├── loading.ts        #   Workflow directory scanning & two-pass loading
+│   │   ├── validation.ts     #   Definition validation & cycle detection
+│   │   └── templates.ts      #   Template variable resolution
 │   ├── state.ts              # State creation, advancement, persistence, reconstruction
 │   ├── tool.ts               # workflow_step tool registration & execution
 │   ├── command.ts            # /workflow and /cancel-workflow slash commands
@@ -37,9 +41,18 @@ pi-workflows/
 │   ├── prompts.ts            # Context injection prompt builder & default templates
 │   ├── renderers.ts          # TUI message renderers for workflow events
 │   └── __tests__/
+│       ├── command.test.ts
 │       ├── config.test.ts
+│       ├── hooks.test.ts
+│       ├── index.test.ts
+│       ├── prompts.test.ts
+│       ├── renderers.test.ts
+│       ├── setup.ts
 │       ├── state.test.ts
-│       └── prompts.test.ts
+│       ├── tool.test.ts
+│       └── helpers/
+│           ├── fixtures.ts
+│           └── mocks.ts
 ├── skills/
 │   └── workflow-generation/
 │       └── SKILL.md          # Agent skill for generating workflow definitions
@@ -89,7 +102,7 @@ Follow these steps in order:
 1. **Define types in `types.ts`** — Add interfaces, type aliases, and type guards. All runtime types and Zod/typebox schemas live alongside or reference these definitions.
 
 2. **Implement in the appropriate module** — Place logic in the module that owns that domain:
-   - Workflow loading/validation → `config.ts`
+   - Workflow loading/validation → `config/`
    - State manipulation → `state.ts`
    - Tool behavior → `tool.ts`
    - Slash commands → `command.ts`

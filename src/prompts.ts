@@ -45,7 +45,7 @@ export function buildContextPrompt(active: ActiveWorkflow): string {
   if (nextPhase) {
     nextPhaseName =
       isSubworkflowRef(nextPhase) && nextPhase.resolved
-        ? (nextPhase.resolved.name ?? nextPhase.workflowKey)
+        ? (nextPhase.resolved.name)
         : isSubworkflowRef(nextPhase)
           ? nextPhase.workflowKey
           : nextPhase.name;
@@ -128,7 +128,7 @@ function collectAllProfiles(definition: { phases: PhaseEntry[] }): string[] {
 function getPreviousPhaseName(definition: { phases: PhaseEntry[] }, currentIndex: number): string {
   if (currentIndex <= 0) return "(start)";
   const prev = definition.phases[currentIndex - 1];
-  if (isSubworkflowRef(prev) && prev.resolved) return prev.resolved.name ?? prev.workflowKey;
+  if (isSubworkflowRef(prev) && prev.resolved) return prev.resolved.name;
   if (isSubworkflowRef(prev)) return prev.workflowKey;
   return prev.name;
 }

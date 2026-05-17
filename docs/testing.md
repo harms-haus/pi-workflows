@@ -1,6 +1,6 @@
 # Testing
 
-Test suite for pi-workflows, covering workflow configuration validation, state machine transitions, and prompt generation.
+Test suite for pi-workflows, covering workflow configuration loading and validation, state machine transitions, prompt generation, event hooks, tool registration, command handling, TUI renderers, and the extension entry point.
 
 ---
 
@@ -18,19 +18,24 @@ Tests use Vitest's built-in `describe`/`it`/`expect` API. No additional assertio
 
 ## Test Files
 
-All tests live under `src/__tests__/`. There are 3 test files with **71 total test cases**.
+All tests live under `src/__tests__/`. There are 8 test files with **268 total test cases**.
 
 | File | Tests | What's Covered |
 |---|---|---|
-| `config.test.ts` | 32 | `resolveTemplate`, `validateWorkflowDefinition`, `detectCycles`, `findWorkflowByCommandName`, `getBlockedTools`, `getWhitelist` |
-| `state.test.ts` | 29 | `createInitialState`, `advancePhase` (linear, enter-subworkflow, breakout, multi-level), `loopPhase`, `resolveActive` (linear, nested, edge cases), `reconstructState` (migration, tampered state), `isActive` |
-| `prompts.test.ts` | 10 | `buildContextPrompt` (linear, nested, template resolution, profiles), `collectAllProfiles` (via prompt output), `getPreviousPhaseName` (via prompt output), `DEFAULT_NOT_DONE_REMINDER`, `DEFAULT_COMPLETION_MESSAGE`, `DEFAULT_CANCELLED_MESSAGE` |
+| `config.test.ts` | 84 | `resolveTemplate`, `validateWorkflowDefinition`, `detectCycles`, `findWorkflowByCommandName`, `getBlockedTools`, `getWhitelist`, `loadWorkflowFromDir`, `loadWorkflowsFromDir`, `loadWorkflows` |
+| `state.test.ts` | 36 | `createInitialState`, `advancePhase` (linear, enter-subworkflow, breakout, multi-level, auto-enter, two-subworkflows), `loopPhase` (scope isolation, loopable inheritance), `resolveActive`, `reconstructState`, `isActive` |
+| `prompts.test.ts` | 10 | `buildContextPrompt` (linear, nested, template resolution, profiles), `collectAllProfiles`, `getPreviousPhaseName`, default message constants |
+| `hooks.test.ts` | 43 | `updateStatus`, `handleToolCall`, `handleBeforeAgentStart`, `handleAgentEnd` (completion, cancellation, countdown widget, abort detection, no-UI fallback, edge cases), `clearActiveCountdown` |
+| `tool.test.ts` | 34 | `registerWorkflowTool` — `status`, `next`, `cancel`, `loop` actions; `renderCall`, `renderResult`; edge cases (stale definition, nested path, unknown action) |
+| `command.test.ts` | 28 | `registerWorkflowCommand` (start, validation, conflicts, tab completion, subworkflow rejection), `registerCancelWorkflowCommand` (cancel, persist, message) |
+| `renderers.test.ts` | 10 | `registerRenderers` — `workflow:context`, `workflow:complete`, `workflow:countdown` renderers |
+| `index.test.ts` | 23 | Extension entry point — event handler registration, `session_start`, `session_tree`, `tool_call`, `before_agent_start`, `agent_end`, `turn_end` handlers |
 
-### config.test.ts (32 tests)
+### config.test.ts (84 tests)
 
 **`resolveTemplate`** — 4 tests covering placeholder replacement, unknown variables left as-is, multiple variables, and empty template.
 
-**`validateWorkflowDefinition`** — 14 tests covering:
+**`validateWorkflowDefinition`** — 24 tests covering:
 - Valid `show: "user"` workflow passes
 - Missing `commandName` / `initialMessage` on user-visible workflows → error
 - `show: "workflows"` (internal) workflows skip those required-field checks
@@ -39,31 +44,73 @@ All tests live under `src/__tests__/`. There are 3 test files with **71 total te
 - Duplicate phase IDs → error
 - Empty or missing `phases` array → error
 - Invalid `show` value → error
+- Missing/empty `name` → error
+- Invalid `commandName` format → error
+- Non-array `blacklist` / `whitelist` → error
+- Both blacklist and whitelist set → error
+- Valid tools config with blacklist
+- Missing `id`, `name`, `emoji`, or `instructions` on concrete phases → error
 
-**`detectCycles`** — 6 tests covering:
+**`detectCycles`** — 9 tests covering:
 - No subworkflow references → no cycles
 - A → B (no cycle), A → A (self-reference), A → B → A, A → B → C → A
 - DAG with multiple paths (A→B, A→C, B→D, C→D) → no cycles
+- Empty definitions
+- Disconnected components with one cyclic pair
+- Subworkflow refs to non-existent workflows → no cycle
 
 **`findWorkflowByCommandName`** — 2 tests: finds matching workflow, returns `null` for unknown name.
 
-**`getBlockedTools` / `getWhitelist`** — 6 tests covering blacklist extraction, whitelist extraction, no-tools fallback, and cross-exclusivity (whitelist present → `getBlockedTools` returns `[]`, blacklist present → `getWhitelist` returns `null`).
+**`getBlockedTools` / `getWhitelist`** — 6 tests covering blacklist extraction, whitelist extraction, no-tools fallback, and cross-exclusivity.
 
-### state.test.ts (29 tests)
+**`loadWorkflowFromDir`** — 18 tests covering:
+- Missing `workflow.yaml` → null
+- Valid workflow with phases loaded from `.md` files
+- Tool config (blacklist/whitelist) parsing from frontmatter
+- Subworkflow reference entries
+- Invalid phase entry types
+- Missing `name` / `commandName` / `initialMessage` → null
+- Path traversal outside workflows root → null
+- Internal (`show: "workflows"`) workflows without `commandName`
+- Optional fields (`loopable`, `roleInstruction`, `advanceReminder`, etc.)
+- Missing phase frontmatter fields (`id`, `name`, `emoji`)
+- Invalid YAML (not an object)
+- Phase file read errors
+- `realpathSync` edge cases
 
-Uses shared fixture definitions (`linearDef`, `parentDef`, `subDef`) exercising a 3-phase linear workflow and a parent workflow containing a nested subworkflow.
+**`loadWorkflowsFromDir`** — 4 tests covering non-existent directory, loading from subdirectories, individual workflow errors, `readdirSync` errors, non-directory entries.
+
+**`loadWorkflows`** — 8 tests covering loading from global pi dir, merging project-local over global, deduplication by `commandName`, subworkflow reference resolution, cycle removal, missing subworkflow reference removal, invalid workflow skipping, `PI_CODING_AGENT_DIR` env variable.
+
+### state.test.ts (36 tests)
+
+Uses shared fixture definitions imported from `helpers/fixtures.ts` (see [Test Helpers](#test-helpers)), exercising a 3-phase linear workflow and a parent workflow containing a nested subworkflow.
 
 **`createInitialState`** — 2 tests: correct field initialization (`currentPath`, `active`, `taskId` prefix) and absence of legacy `currentPhaseIndex` field.
 
-**`advancePhase`** — 12 tests across four groups:
-- **Linear** (3): advance through phases 0→1→2, final advance sets `active=false`
-- **Enter subworkflow** (2): path length increases from 1 to 2, new segment pushed with correct `workflowKey`
-- **Breakout** (2): last phase of subworkflow pops segment, path length decreases
-- **Multi-level** (1): full journey — enter sub → advance within → breakout → advance parent to DONE
+**`advancePhase` — linear** — 3 tests: advance through phases 0→1→2, final advance sets `active=false`.
+
+**`advancePhase` — enter subworkflow** — 2 tests: path length increases from 1 to 2, new segment pushed with correct `workflowKey`.
+
+**`advancePhase` — breakout** — 2 tests: last phase of subworkflow pops segment, path length decreases.
+
+**`advancePhase` — multi-level** — 1 test: full journey — enter sub → advance within → breakout → advance parent to DONE.
+
+**`advancePhase` — auto-enter concrete phase name** — 2 tests: advancing to subworkflow ref returns concrete first phase name.
+
+**`advancePhase` — breakout + auto-enter (two subworkflows)** — 2 tests: advance through parent → sub → sub2 → phase3, verifying auto-enter at each transition.
 
 **`loopPhase`** — 3 tests: resets `phaseIndex` to 0 and increments `globalStepCount`, rejects non-loopable workflows, resets only innermost scope in nested workflows.
 
-**`resolveActive`** — 6 tests: resolves `currentPhase`/`nextPhase` for linear, resolves innermost phase for nested, breadcrumb construction, and edge cases (missing definition, out-of-bounds index, null state, inactive state).
+**`loopPhase` — subworkflow scope** — 1 test: after auto-enter, loop resets subworkflow scope.
+
+**`loopPhase` — loopable isolation** — 2 tests: parent `loopable=false` does not block subworkflow looping; subworkflow `loopable=false` blocks looping even if parent allows it.
+
+**`resolveActive` — linear** — 2 tests: single-element path resolves correctly, returns correct `currentPhase` and `nextPhase`.
+
+**`resolveActive` — nested** — 2 tests: multi-element path resolves to innermost phase, breadcrumb array has correct entries.
+
+**`resolveActive` — edge cases** — 4 tests: missing definition, out-of-bounds index, null state, inactive state.
 
 **`reconstructState`** — 5 tests: migration from legacy `currentPhaseIndex` to `currentPath`, passthrough for new-format states, null for missing entries, null for empty `currentPath` (tampered), null for malformed path segment (tampered).
 
@@ -83,127 +130,182 @@ Uses shared fixture definitions (`linearDef`, `parentDef`, `subDef`) exercising 
 
 **Default message constants** — 3 tests: each constant (`DEFAULT_NOT_DONE_REMINDER`, `DEFAULT_COMPLETION_MESSAGE`, `DEFAULT_CANCELLED_MESSAGE`) contains expected template variables.
 
+### hooks.test.ts (43 tests)
+
+**`clearActiveCountdown`** — 3 tests: clears widget when interval is active, safe to call with no active countdown, safe when `ctx.hasUI` is false.
+
+**`handleAgentEnd` — countdown widget** — 4 tests: skips auto-continue on abort, shows countdown widget before auto-continue (3s→2s→1s→send), handles `sendUserMessage` throwing during countdown, prevents stacked intervals.
+
+**`handleAgentEnd` — null state** — 2 tests: no widget when state is null, returns noOp for active state.
+
+**`handleAgentEnd` — no-UI fallback** — 1 test: uses `sendMessage` + `setTimeout` when `hasUI` is false.
+
+**`updateStatus`** — 5 tests: clears when state is null, clears when inactive, shows phase name for linear workflow, shows breadcrumb format for nested subworkflow, clears when `resolveActive` returns null.
+
+**`handleToolCall`** — 9 tests: allows all tools when null/inactive state, blocks blacklisted tools, blocks non-whitelisted tools, allows whitelisted tools, allows all when no tool config, always allows `workflow_step`, allows non-blacklisted tools.
+
+**`handleBeforeAgentStart`** — 4 tests: returns undefined when null/inactive, returns context prompt when active, returns undefined when `resolveActive` returns null.
+
+**`handleAgentEnd` — completion path** — 3 tests: sends default completion message, uses custom `completionMessage` template, uses `DEFAULT_COMPLETION_MESSAGE` when no custom template.
+
+**`handleAgentEnd` — cancellation path** — 4 tests: sends cancelled message with details, uses custom template for cancelled workflow, uses `DEFAULT_CANCELLED_MESSAGE`, does not set `completionNotified` when cancelled.
+
+**`handleAgentEnd` — edge cases** — 3 tests: returns noOp when already `completionNotified`, returns noOp when `resolveActive` returns null, detects abort from message history.
+
+**`handleToolCall` — edge cases** — 2 tests: returns undefined when `resolveActive` returns null, uses custom `blockReasonTemplate`.
+
+**`handleAgentEnd` — additional edge cases** — 3 tests: no-UI fallback `setTimeout` throwing, `setWidget` throwing inside interval gracefully, countdown outer catch.
+
+### tool.test.ts (34 tests)
+
+**Status action** — 3 tests: no active workflow, current phase info when active, stale definition.
+
+**Next action** — 5 tests: advances phase and updates status, marks complete on last phase, entering subworkflow pushes new scope, exiting subworkflow pops scope, stale definition.
+
+**Cancel action** — 3 tests: first call sets `_cancelPending`, second call marks cancelled, no active workflow.
+
+**Loop action** — 3 tests: resets phase index, non-loopable returns error, no active workflow.
+
+**Summary parameter** — 1 test: stored in state when provided with next action.
+
+**`renderCall`** — 2 tests: returns Text component with tool name and action, renders different actions correctly.
+
+**`renderResult`** — 10 tests: error results, `Error:` prefix, `Could not` prefix, `Unknown action` prefix, `not found` content, cancel confirmation, cancelled result, completion result, normal results (first line only), Container for non-text/empty content.
+
+**Unknown action** — 1 test: returns unknown action message for invalid action.
+
+**Loop stale definition** — 1 test: resolves correctly after loop.
+
+### command.test.ts (28 tests)
+
+**`registerWorkflowCommand`** — registers `/workflow` command.
+
+- **No arguments** (2): shows usage info with available workflow names, handles `undefined` args.
+- **Valid invocation** (5): creates state and sends initial message, sets session name, respects `sessionNamePrefix`, truncates long description, calls `persistState`.
+- **Unknown commandName** (2): shows error notification, lists available workflows in error message.
+- **Already active** (2): shows confirm dialog, starts new workflow when confirmed.
+- **Subworkflow rejection** (1): rejects subworkflow-only workflows started directly.
+- **Missing description** (2): shows usage warning for empty/whitespace-only description.
+- **Tab completion** (4): returns matching names, excludes subworkflow-only workflows, returns null for no match, returns all user-visible when prefix is empty.
+
+**`registerCancelWorkflowCommand`** — registers `/cancel-workflow` command.
+
+- **When not active** (2): info notification for null state, info notification for inactive state.
+- **When active** (5): persists cancelled state, clears status bar, sends cancellation message, includes task description/ID, sets state to null, shows cancellation notification.
+
+### renderers.test.ts (10 tests)
+
+**Registration** — 1 test: calls `registerMessageRenderer` 3 times with correct message types.
+
+**`workflow:context` renderer** — 3 tests: returns Text instance, ignores message content (fixed context text), produces same output regardless of content.
+
+**`workflow:complete` renderer** — 3 tests: returns Text instance, extracts string content with bold+success styling, handles non-string content gracefully.
+
+**`workflow:countdown` renderer** — 3 tests: returns Text instance, extracts string content with dim styling, handles non-string content gracefully.
+
+### index.test.ts (23 tests)
+
+Tests the extension entry point by mocking all sub-modules (`config`, `state`, `hooks`, `tool`, `command`, `renderers`) and verifying the wiring.
+
+**Module registration** — 4 tests: exports a default function, registers 6 event handlers, registers the workflow tool, registers commands and renderers.
+
+**`session_start` handler** — 3 tests: loads workflows and updates status, catches stale errors, re-throws non-stale errors.
+
+**`session_tree` handler** — 3 tests: loads workflows and updates status, catches stale errors, re-throws non-stale errors.
+
+**`tool_call` handler** — 2 tests: delegates to `handleToolCall`, returns block result when blocking.
+
+**`before_agent_start` handler** — 2 tests: delegates to `handleBeforeAgentStart`, returns undefined when void.
+
+**`agent_end` handler** — 5 tests: persists when mutation says persist, unloads state when `unload=true`, updates state when `mutation.state` provided, catches stale errors, re-throws non-stale errors.
+
+**`turn_end` handler** — 3 tests: delegates to `updateStatus`, catches stale errors, re-throws non-stale errors.
+
 ---
 
 ## Test Helpers
 
-Each test file defines local helper functions to construct minimal valid test data without coupling tests to full production definitions.
+Test helpers are split between **local helpers** defined in individual test files and **shared helpers** in `src/__tests__/helpers/`.
 
-### `makeUserDef` (config.test.ts)
+### Shared Helpers (`helpers/mocks.ts`)
 
-Builds a minimal `show: "user"` workflow definition. Used for most `validateWorkflowDefinition` and `findWorkflowByCommandName` tests.
+Provides mock implementations of the pi agent runtime interfaces:
 
-```typescript
-function makeUserDef(
-  overrides: Partial<WorkflowDefinition> = {},
-): WorkflowDefinition {
-  return {
-    name: "Test Workflow",
-    commandName: "test",
-    initialMessage: "Let's go",
-    phases: [
-      {
-        id: "p1",
-        name: "Phase 1",
-        emoji: "1️⃣",
-        instructions: "Do phase 1",
-      },
-    ],
-    ...overrides,
-  };
-}
-```
-
-**Usage** — override specific fields while keeping a valid baseline:
+**`createMockContext`** — creates a mock `ExtensionContext` with sensible defaults:
 
 ```typescript
-// Missing required field
-const def = makeUserDef({ commandName: "" });
+import { createMockContext } from "./helpers/mocks";
 
-// Multiple phases with duplicate IDs
-const phase: PhaseDefinition = { id: "dup", name: "P", emoji: "⚡", instructions: "X" };
-const def = makeUserDef({ phases: [phase, { ...phase }] });
+// Default mock with hasUI: true
+const ctx = createMockContext();
+
+// Override specific fields
+const ctx = createMockContext({ hasUI: false });
 ```
 
-### `makeInternalDef` (config.test.ts)
-
-Builds a minimal `show: "workflows"` (internal) workflow definition. Omits `commandName` and `initialMessage` by default since those are not required for internal workflows.
+**`createMockAPI`** — creates a mock `ExtensionAPI` using a dual-handle pattern that returns both the `api` object and individual mock functions:
 
 ```typescript
-function makeInternalDef(
-  overrides: Partial<WorkflowDefinition> = {},
-): WorkflowDefinition {
-  return {
-    name: "Internal",
-    show: "workflows",
-    phases: [
-      {
-        id: "ip1",
-        name: "Internal Phase",
-        emoji: "🔧",
-        instructions: "Do work",
-      },
-    ],
-    ...overrides,
-  };
-}
+import { createMockAPI } from "./helpers/mocks";
+
+const { api, sendMessage, registerTool, registerCommand, on } = createMockAPI();
+
+// Use api for registration
+registerWorkflowTool(api, getState, getDefinitions, setState);
+
+// Assert on captured calls
+expect(registerTool).toHaveBeenCalledTimes(1);
 ```
 
-### `makeCtx` (state.test.ts)
+Used by `hooks.test.ts`, `tool.test.ts`, `renderers.test.ts`, and `index.test.ts`.
 
-Creates a mock extension context for `reconstructState` tests, simulating the session branch entries.
+### Shared Fixtures (`helpers/fixtures.ts`)
 
-```typescript
-function makeCtx(entries: Record<string, unknown>[]) {
-  return { sessionManager: { getBranch: () => entries } };
-}
-```
+Provides factory functions and fixture data for constructing test `WorkflowDefinition`, `WorkflowState`, and `PhaseDefinition` objects. Exports are namespaced per test file to avoid collisions:
 
-### `makeActive` (prompts.test.ts)
+| Export | Used By | Description |
+|---|---|---|
+| `STATE_PHASE_*`, `makeStateLinearDef`, `makeStateParentDef`, `makeStateSubDef`, `makeStateAllDefs` | `state.test.ts` | 3-phase linear, 2-phase sub, parent with sub ref |
+| `TOOL_PHASE_*`, `makeToolLinearDef`, `makeToolParentDef`, `makeToolSubDef`, `makeToolNoLoopDef`, `makeToolAllDefs`, `makeToolActiveState` | `tool.test.ts` | Linear, parent, sub, and no-loop definitions + active state builder |
+| `PROMPTS_PHASE_*`, `makePromptsLinearDef` | `prompts.test.ts` | 2-phase linear workflow for prompt tests |
+| `CMD_*`, `makeCommandDefs` | `command.test.ts` | User-visible and subworkflow-only command definitions |
+| `makeDefinition`, `makeActiveState` | `hooks.test.ts`, `index.test.ts` | Minimal single-workflow definition and state |
 
-Builds a complete `ActiveWorkflow` object from a workflow definition and optional state/path overrides. Manually resolves `currentPhase`, `nextPhase`, and `breadcrumb` from the given definition and path.
+### Local Helpers
 
-```typescript
-function makeActive(
-  def: WorkflowDefinition,
-  stateOverrides: Partial<WorkflowState> = {},
-  pathOverrides?: PathSegment[],
-): ActiveWorkflow { /* ... */ }
-```
+Some test files define additional helpers locally:
 
-**Usage:**
+**`makeUserDef` / `makeInternalDef`** (config.test.ts) — build minimal `show: "user"` or `show: "workflows"` workflow definitions with optional overrides. Used for `validateWorkflowDefinition` and `detectCycles` tests.
 
-```typescript
-// Default: active at phase index 0
-const active = makeActive(linearDef);
+**`makeCtx`** (state.test.ts) — creates a mock extension context for `reconstructState` tests, simulating session branch entries.
 
-// Active at phase index 1
-const active = makeActive(defWithPrev, {}, [
-  { workflowKey: "test", phaseIndex: 1 },
-]);
-```
+**`makeActive`** (prompts.test.ts) — builds a complete `ActiveWorkflow` object from a workflow definition and optional state/path overrides.
+
+**`setupTool`** (tool.test.ts) — registers the workflow tool with mock API and returns `{ execute, renderCall, renderResult, ctx, getState, setState }` for testing.
+
+**`createMockPI`** (command.test.ts) — creates a mock API that captures registered command handlers in a `Map`.
 
 ---
 
-## Test Fixtures
+## Test Setup
 
-`state.test.ts` defines shared phase and workflow definitions used across multiple test groups:
+A global setup file (`src/__tests__/setup.ts`) mocks the TUI rendering library so tests run without the full TUI dependency:
 
-| Fixture | Description |
-|---|---|
-| `phase1`, `phase2`, `phase3` | Three simple `PhaseDefinition` objects (`p1`–`p3`) |
-| `subPhase1`, `subPhase2` | Two phases for the subworkflow (`sp1`, `sp2`) |
-| `linearDef` | 3-phase linear workflow (`"Linear"`, command `"lin"`) |
-| `subDef` | 2-phase internal subworkflow (`"Sub"`, `show: "workflows"`) |
-| `parentDef` | 3-entry parent workflow: `phase1` → subworkflow ref → `phase3` |
-| `allDefs` | `Record<string, WorkflowDefinition>` containing `linear`, `parent`, `sub` |
+```typescript
+import { vi } from "vitest";
 
-These fixtures exercise the key state machine scenarios:
+vi.mock("@earendil-works/pi-tui", () => ({
+  Text: class Text {
+    constructor(public content: string) {}
+    render = vi.fn(() => this.content);
+  },
+  Container: class Container {
+    render = vi.fn(() => "");
+  },
+}));
+```
 
-- **Linear traversal**: `linearDef` — advance through all phases to completion
-- **Subworkflow entry**: `parentDef` — advance from parent into `subDef` (path grows)
-- **Subworkflow breakout**: advance past the last phase of `subDef` back to parent (path shrinks)
-- **Multi-level**: combine entry, traversal, breakout, and final completion in one sequence
+This is referenced via `setupFiles` in `vitest.config.ts`.
 
 ---
 
@@ -215,120 +317,59 @@ npm test
 
 # Run in watch mode (development)
 npx vitest
+
+# Run with coverage report
+npx vitest run --coverage
 ```
 
-Vitest discovers tests via the `include` pattern in `vitest.config.ts`:
+Vitest discovers tests via the `include` pattern in `vitest.config.ts` and enforces **90% coverage thresholds** across all metrics:
 
 ```typescript
 import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     include: ['src/__tests__/**/*.test.ts'],
+    setupFiles: ['src/__tests__/setup.ts'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'lcov'],
+      include: ['src/**/*.ts'],
+      exclude: ['src/__tests__/**', 'src/**/*.test.ts', 'src/**/setup.ts', 'src/**/helpers/**'],
+      thresholds: {
+        statements: 90,
+        branches: 90,
+        functions: 90,
+        lines: 90,
+      },
+    },
   },
 });
 ```
 
-There is **no coverage configuration** yet. Adding `--coverage` to the vitest config would enable coverage reporting (see [Adding Tests](#adding-tests)).
+### Current Coverage
+
+| File | Statements | Branches | Functions | Lines |
+|---|---|---|---|---|
+| **Overall** | 96.03% | 90.6% | 96.26% | 97.09% |
+| `command.ts` | 97.18% | 85.71% | 100% | 98.5% |
+| `hooks.ts` | 100% | 98.5% | 100% | 100% |
+| `index.ts` | 91.22% | 100% | 66.66% | 94.11% |
+| `prompts.ts` | 96.49% | 80.95% | 100% | 100% |
+| `state.ts` | 88.13% | 78.04% | 100% | 90.82% |
+| `tool.ts` | 97.24% | 92.06% | 100% | 97.19% |
+| `config/loading.ts` | 96.42% | 91.17% | 100% | 96.64% |
+| `config/validation.ts` | 99.17% | 97.11% | 100% | 100% |
 
 ---
 
-## Coverage Gaps
+## Remaining Coverage Gaps
 
-The following modules have **no dedicated tests**:
+All major modules now have dedicated test coverage. The remaining uncovered lines are primarily defensive branches and edge cases:
 
-### `hooks.ts`
-
-Contains `updateStatus`, `handleToolCall`, `handleBeforeAgentStart`, and `handleAgentEnd`. These functions depend on `ExtensionAPI` and event objects.
-
-**Suggested tests:**
-
-```typescript
-// Mock ExtensionAPI
-const mockPi = { sendMessage: vi.fn() };
-const mockCtx = { ui: { setStatus: vi.fn() } };
-
-describe("handleToolCall", () => {
-  it("blocks blacklisted tool");
-  it("blocks non-whitelisted tool when whitelist is set");
-  it("allows workflow_step unconditionally");
-  it("allows any tool when phase has no tool config");
-});
-
-describe("handleBeforeAgentStart", () => {
-  it("returns context message when workflow is active");
-  it("returns void when no workflow is active");
-});
-
-describe("handleAgentEnd", () => {
-  it("sends completion message when workflow is done");
-  it("sends cancellation message when workflow is cancelled");
-  it("auto-continues when workflow is still active");
-  it("skips auto-continue when agent was aborted");
-});
-
-describe("updateStatus", () => {
-  it("sets status bar for linear workflow");
-  it("sets status bar for nested workflow with breadcrumb");
-  it("clears status when no active workflow");
-});
-```
-
-### `tool.ts`
-
-Contains `registerWorkflowTool` which registers the `workflow_step` tool with actions: `status`, `next`, `cancel`, `loop`. Requires mocking `ExtensionAPI.registerTool` and capturing the `execute` callback.
-
-**Suggested tests:**
-
-```typescript
-describe("workflow_step execute", () => {
-  it("status: returns current phase info");
-  it("status: reports no active workflow");
-  it("next: advances phase and returns new instructions");
-  it("next: reports DONE on final phase");
-  it("cancel: first call requests confirmation");
-  it("cancel: second call confirms cancellation");
-  it("loop: resets to phase 0 and returns instructions");
-  it("loop: returns error for non-loopable workflow");
-});
-```
-
-### `command.ts`
-
-Contains `registerWorkflowCommand` and `registerCancelWorkflowCommand`. Requires mocking `ExtensionAPI.registerCommand` and capturing the `handler` callback.
-
-**Suggested tests:**
-
-```typescript
-describe("/workflow command", () => {
-  it("starts workflow by commandName");
-  it("returns error for unknown command name");
-  it("returns error when args are missing");
-  it("returns error when workflow is already active");
-});
-
-describe("/cancel-workflow command", () => {
-  it("cancels active workflow");
-  it("returns error when no workflow is active");
-});
-```
-
-### `renderers.ts`
-
-Contains `registerRenderers` which registers three TUI message renderers (`workflow:context`, `workflow:complete`, `workflow:countdown`). Requires mocking `ExtensionAPI.registerMessageRenderer` and `theme` objects.
-
-**Suggested tests:**
-
-```typescript
-describe("registerRenderers", () => {
-  it("renders workflow:context as dim status line");
-  it("renders workflow:complete with bold success styling");
-  it("renders workflow:countdown with countdown text");
-});
-```
-
-### `index.ts`
-
-The entry point wiring all registrations. Typically tested via integration tests rather than unit tests, since it's pure orchestration.
+- **`state.ts`** (88.13% statements) — uncovered branches include multi-level breakout with more than two nesting levels and some `advancePhase` internal paths.
+- **`prompts.ts`** (80.95% branches) — uncovered branches include some template variable resolution paths and conditional prompt sections.
+- **`command.ts`** (85.71% branches) — one uncovered line in the session name handling.
+- **`index.ts`** (91.22% statements, 66.66% functions) — some event handler wrapper functions are only exercised through specific mock paths.
 
 ---
 
@@ -359,11 +400,14 @@ describe("myFunction", () => {
 
 ### Use existing helpers and fixtures
 
-When testing modules that consume `WorkflowDefinition`, `WorkflowState`, or `ActiveWorkflow`, copy or import the helper patterns from existing test files:
+When testing modules that consume `WorkflowDefinition`, `WorkflowState`, or `ActiveWorkflow`, import from the shared helpers:
 
-- **`makeUserDef` / `makeInternalDef`** — for constructing `WorkflowDefinition` objects (see [Test Helpers](#test-helpers))
-- **`makeCtx`** — for mocking the extension context needed by `reconstructState`
-- **`makeActive`** — for building `ActiveWorkflow` objects in prompt tests
+```typescript
+import { makeDefinition, makeActiveState } from "./helpers/fixtures";
+import { createMockAPI, createMockContext } from "./helpers/mocks";
+```
+
+See [Test Helpers](#test-helpers) for the full list of available factories.
 
 ### Test edge cases
 
@@ -376,59 +420,34 @@ Following the existing patterns, each function's test suite covers:
 
 ### Mocking ExtensionAPI
 
-For testing `hooks.ts`, `tool.ts`, `command.ts`, and `renderers.ts`, mock the pi agent runtime:
+Use `createMockAPI` and `createMockContext` from `helpers/mocks.ts` rather than building mocks by hand:
 
 ```typescript
-import { vi } from "vitest";
+import { createMockAPI, createMockContext } from "./helpers/mocks";
 
-const mockSetStatus = vi.fn();
-const mockSendMessage = vi.fn();
-const mockRegisterTool = vi.fn();
-const mockRegisterCommand = vi.fn();
-const mockRegisterMessageRenderer = vi.fn();
-
-const mockPi = {
-  sendMessage: mockSendMessage,
-  registerTool: mockRegisterTool,
-  registerCommand: mockRegisterCommand,
-  registerMessageRenderer: mockRegisterMessageRenderer,
-} as unknown as ExtensionAPI;
-
-const mockCtx = {
-  ui: { setStatus: mockSetStatus },
-} as unknown as ExtensionContext;
+const { api, sendMessage, registerTool } = createMockAPI();
+const ctx = createMockContext();
 ```
 
-For `registerWorkflowTool`, capture the tool definition and test the `execute` callback directly:
+For testing tools, capture the registered tool definition and test the `execute` callback directly:
 
 ```typescript
-registerWorkflowTool(mockPi, getState, getDefinitions, setState);
-const toolDef = mockRegisterTool.mock.calls[0][0];
+registerWorkflowTool(api, getState, getDefinitions, setState);
+const toolConfig = registerTool.mock.calls[0][0];
+const execute = toolConfig.execute as ToolExecuteFn;
 
-// Now test toolDef.execute with different params
-const result = await toolDef.execute("call-1", { action: "status" }, abortSignal, vi.fn(), mockCtx);
+const result = await execute("call-1", { action: "status" }, undefined, undefined, ctx);
 ```
 
-### Enable coverage (optional)
+### Enable coverage
 
-Add to `vitest.config.ts`:
+Coverage is already configured in `vitest.config.ts` with v8 provider, lcov and text reporters, and 90% thresholds on all metrics. Run:
 
-```typescript
-import { defineConfig } from 'vitest/config';
-export default defineConfig({
-  test: {
-    include: ['src/__tests__/**/*.test.ts'],
-    coverage: {
-      provider: 'v8',
-      reporter: ['text', 'html'],
-      include: ['src/**/*.ts'],
-      exclude: ['src/**/*.test.ts', 'src/types.ts'],
-    },
-  },
-});
+```bash
+npx vitest run --coverage
 ```
 
-Then run `npx vitest run --coverage`.
+CI builds will fail if any metric drops below the threshold.
 
 ---
 

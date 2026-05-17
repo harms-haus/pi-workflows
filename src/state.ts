@@ -43,7 +43,7 @@ function phaseEntryName(entry: PhaseEntry): string {
  * Pushes segments onto state.currentPath and returns the first concrete phase name,
  * or null if the subworkflow chain cannot be resolved.
  */
-function autoEnterSubworkflowRefs(
+export function autoEnterSubworkflowRefs(
   state: WorkflowState,
   entry: SubworkflowReference,
 ): string | null {
@@ -52,13 +52,27 @@ function autoEnterSubworkflowRefs(
   state.currentPath.push({ workflowKey: entry.workflowKey, phaseIndex: 0 });
 
   const firstEntry = entry.resolved.phases[0];
-  if (!firstEntry) return entry.workflowKey; // empty subworkflow
 
   if (isSubworkflowRef(firstEntry)) {
     return autoEnterSubworkflowRefs(state, firstEntry);
   }
 
   return firstEntry.name;
+}
+
+/**
+ * Resolve the first concrete PhaseDefinition from a phases array,
+ * drilling through any nested SubworkflowReferences.
+ * Returns null if the chain cannot be resolved (e.g. empty phases or unresolved refs).
+ */
+export function resolveFirstPhase(phases: PhaseEntry[]): PhaseDefinition | null {
+  const first = phases[0];
+  if (isPhaseDefinition(first)) return first;
+  if (isSubworkflowRef(first)) {
+    if (!first.resolved) return null;
+    return resolveFirstPhase(first.resolved.phases);
+  }
+  return null;
 }
 
 // ── State Advancement ──
@@ -73,28 +87,17 @@ export function advancePhase(
   definitions: Record<string, WorkflowDefinition>,
 ): { advanced: boolean; from: string; to: string | null } {
   const top = state.currentPath[state.currentPath.length - 1];
-  if (!top) return { advanced: false, from: "", to: null };
 
   const topDef = definitions[top.workflowKey];
-  if (!topDef) {
-    console.warn(`[pi-workflows] Workflow definition "${top.workflowKey}" not found.`);
-    return { advanced: false, from: "", to: null };
-  }
 
   const currentEntry = topDef.phases[top.phaseIndex];
-  if (!currentEntry) {
-    console.warn(
-      `[pi-workflows] Phase index ${top.phaseIndex} out of bounds for workflow "${top.workflowKey}".`,
-    );
-    return { advanced: false, from: "", to: null };
-  }
 
   // Case 1: Entering a subworkflow
   if (isSubworkflowRef(currentEntry)) {
     state.currentPath.push({ workflowKey: currentEntry.workflowKey, phaseIndex: 0 });
     state.globalStepCount++;
     const subDef = definitions[currentEntry.workflowKey];
-    const firstPhaseName = subDef?.phases[0]
+    const firstPhaseName = subDef.phases[0]
       ? phaseEntryName(subDef.phases[0])
       : currentEntry.workflowKey;
     return { advanced: true, from: phaseEntryName(currentEntry), to: firstPhaseName };
@@ -131,11 +134,7 @@ export function advancePhase(
   newTop.phaseIndex += 1;
   state.globalStepCount++;
 
-  const nextEntry = newTopDef?.phases[newTop.phaseIndex];
-  if (!nextEntry) {
-    // Parent is now past its last phase — next advancePhase call will handle it
-    return { advanced: true, from: currentEntry.name, to: null };
-  }
+  const nextEntry = newTopDef.phases[newTop.phaseIndex];
   if (isSubworkflowRef(nextEntry)) {
     const concreteName = autoEnterSubworkflowRefs(state, nextEntry);
     return {
@@ -185,23 +184,19 @@ export function resolveActive(
 
   // Walk the path stack to validate all segments
   for (const segment of state.currentPath) {
-    if (!definitions[segment.workflowKey]) {
-      console.warn(`[pi-workflows] Workflow definition "${segment.workflowKey}" not found.`);
+    if (!(segment.workflowKey in definitions)) {
+      console.warn(`[pi-workflows] Path segment references missing workflow '${segment.workflowKey}'`);
       return null;
     }
   }
 
   // Get the innermost scope
   const top = state.currentPath[state.currentPath.length - 1];
+  if (!(top.workflowKey in definitions)) return null;
   const topDef = definitions[top.workflowKey];
 
+  if (top.phaseIndex >= topDef.phases.length) return null;
   const currentEntry = topDef.phases[top.phaseIndex];
-  if (!currentEntry) {
-    console.warn(
-      `[pi-workflows] Phase index ${top.phaseIndex} out of bounds for workflow "${top.workflowKey}".`,
-    );
-    return null;
-  }
 
   // Resolve the concrete PhaseDefinition (drill into subworkflow refs)
   let currentPhase: PhaseDefinition;
@@ -213,10 +208,14 @@ export function resolveActive(
       );
       return null;
     }
-    const firstEntry = currentEntry.resolved.phases[0];
-    currentPhase = isPhaseDefinition(firstEntry)
-      ? firstEntry
-      : (firstEntry as unknown as PhaseDefinition);
+    const firstPhase = resolveFirstPhase(currentEntry.resolved.phases);
+    if (!firstPhase) {
+      console.warn(
+        `[pi-workflows] Could not resolve first phase of subworkflow "${currentEntry.workflowKey}".`,
+      );
+      return null;
+    }
+    currentPhase = firstPhase;
   } else {
     currentPhase = currentEntry;
   }
@@ -261,6 +260,47 @@ interface SessionEntry {
 }
 
 /**
+ * Migrate old state format (currentPhaseIndex) to new format (currentPath).
+ */
+function migrateStateData(data: Record<string, unknown>): void {
+  if (data.currentPhaseIndex !== undefined && !data.currentPath) {
+    data.currentPath = [
+      { workflowKey: data.workflowKey as string, phaseIndex: data.currentPhaseIndex as number },
+    ];
+    delete data.currentPhaseIndex;
+  }
+  if (data.currentPath && data.globalStepCount === undefined) {
+    data.globalStepCount =
+      (data.currentPath as Array<{ phaseIndex: number }>)[0]?.phaseIndex ?? 0;
+  }
+}
+
+/**
+ * Validate that reconstructed state has a valid currentPath.
+ * Returns true if valid, false if the state should be discarded.
+ */
+function validateReconstructedState(data: Record<string, unknown>): boolean {
+  if (!Array.isArray(data.currentPath) || (data.currentPath as unknown[]).length === 0) {
+    console.warn("[pi-workflows] Invalid persisted state: empty currentPath. Discarding.");
+    return false;
+  }
+  for (const seg of data.currentPath as Array<unknown>) {
+    if (
+      typeof seg !== "object" ||
+      seg === null ||
+      typeof (seg as Record<string, unknown>).workflowKey !== "string" ||
+      typeof (seg as Record<string, unknown>).phaseIndex !== "number"
+    ) {
+      console.warn(
+        "[pi-workflows] Invalid persisted state: malformed path segment. Discarding.",
+      );
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
  * Reconstruct workflow state from the session branch.
  * Scans entries in reverse order and finds the most recent state entry.
  */
@@ -273,38 +313,9 @@ export function reconstructState(ctx: {
     if (entry.type === "custom" && entry.customType === STATE_ENTRY_TYPE) {
       const rawData = entry.data as Record<string, unknown> | undefined;
       if (rawData?.workflowKey == null) continue;
-      // Migration: old state has currentPhaseIndex, new state has currentPath
       const data = { ...rawData };
-      if (data.currentPhaseIndex !== undefined && !data.currentPath) {
-        data.currentPath = [
-          { workflowKey: data.workflowKey as string, phaseIndex: data.currentPhaseIndex as number },
-        ];
-        delete data.currentPhaseIndex;
-      }
-      if (data.currentPath && data.globalStepCount === undefined) {
-        data.globalStepCount =
-          (data.currentPath as Array<{ phaseIndex: number }>)[0]?.phaseIndex ?? 0;
-      }
-
-      // Validate reconstructed state to prevent crashes from tampered data
-      if (!Array.isArray(data.currentPath) || (data.currentPath as unknown[]).length === 0) {
-        console.warn("[pi-workflows] Invalid persisted state: empty currentPath. Discarding.");
-        return null;
-      }
-      for (const seg of data.currentPath as Array<unknown>) {
-        if (
-          typeof seg !== "object" ||
-          seg === null ||
-          typeof (seg as Record<string, unknown>).workflowKey !== "string" ||
-          typeof (seg as Record<string, unknown>).phaseIndex !== "number"
-        ) {
-          console.warn(
-            "[pi-workflows] Invalid persisted state: malformed path segment. Discarding.",
-          );
-          return null;
-        }
-      }
-
+      migrateStateData(data);
+      if (!validateReconstructedState(data)) return null;
       return data as unknown as WorkflowState;
     }
   }
@@ -315,6 +326,6 @@ export function reconstructState(ctx: {
 /**
  * Check if the workflow state is active.
  */
-export function isActive(state: WorkflowState | null): boolean {
+export function isActive(state: WorkflowState | null): state is WorkflowState {
   return state?.active === true;
 }

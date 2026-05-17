@@ -10,6 +10,7 @@ import {
   buildContextPrompt,
   DEFAULT_NOT_DONE_REMINDER,
   DEFAULT_CANCELLED_MESSAGE,
+  DEFAULT_COMPLETION_MESSAGE,
 } from "./prompts";
 import { resolveTemplate, getBlockedTools, getWhitelist } from "./config";
 
@@ -55,7 +56,7 @@ export function updateStatus(
     // Nested workflow — breadcrumb format with inner scope progress
     const top = state.currentPath[state.currentPath.length - 1];
     const innerDef = definitions[top.workflowKey];
-    const innerTotal = innerDef?.phases.length ?? 0;
+    const innerTotal = innerDef.phases.length;
     const innerCurrent = top.phaseIndex + 1;
     const breadcrumbNames = active.breadcrumb
       .slice(0, -1)
@@ -72,7 +73,7 @@ export function handleToolCall(
   event: ToolCallEvent,
   state: WorkflowState | null,
   definitions: Record<string, WorkflowDefinition>,
-): { block: true; reason: string } | void {
+): { block: true; reason: string } | undefined {
   if (!isActive(state)) return;
   const active = resolveActive(state, definitions);
   if (!active) return;
@@ -118,7 +119,7 @@ const DEFAULT_BLOCK_REASON =
 export function handleBeforeAgentStart(
   state: WorkflowState | null,
   definitions: Record<string, WorkflowDefinition>,
-): { message: { customType: string; content: string; display: boolean } } | void {
+): { message: { customType: string; content: string; display: boolean } } | undefined {
   if (!isActive(state)) return;
   const active = resolveActive(state, definitions);
   if (!active) return;
@@ -145,6 +146,88 @@ function wasAborted(messages: AgentEndEvent["messages"]): boolean {
   return false;
 }
 
+/** Send a completion/cancellation message for the workflow. */
+function sendCompletionMessage(
+  pi: ExtensionAPI,
+  definition: WorkflowDefinition,
+  state: WorkflowState,
+  template: string,
+): void {
+  const msg = resolveTemplate(template, {
+    workflowName: definition.name,
+    taskDescription: state.taskDescription,
+    taskId: state.taskId,
+    phaseCount: String(definition.phases.length),
+  });
+  pi.sendMessage(
+    { customType: "workflow:complete", content: msg, display: true },
+    { triggerTurn: false },
+  );
+}
+
+/** Start a countdown widget that auto-continues after a delay. */
+function startCountdown(
+  pi: ExtensionAPI,
+  ctx: ExtensionContext,
+  reminder: string,
+): void {
+  if (ctx.hasUI) {
+    if (activeCountdown !== null) {
+      clearInterval(activeCountdown);
+    }
+
+    let remaining = 3;
+    const interval = setInterval(() => {
+      try {
+        remaining--;
+        if (remaining > 0) {
+          ctx.ui.setWidget(
+            "workflow-countdown",
+            [`⏳ Auto-continuing in ${remaining}s... (type anything to interrupt)`],
+            { placement: "aboveEditor" },
+          );
+        } else {
+          clearInterval(interval);
+          activeCountdown = null;
+          ctx.ui.setWidget("workflow-countdown", undefined);
+          try {
+            pi.sendUserMessage(reminder);
+          } catch {
+            // User already started typing — skip auto-continue
+          }
+        }
+      } catch {
+        clearInterval(interval);
+        activeCountdown = null;
+        ctx.ui.setWidget("workflow-countdown", undefined);
+      }
+    }, 1000);
+    activeCountdown = interval;
+
+    ctx.ui.setWidget(
+      "workflow-countdown",
+      ["⏳ Auto-continuing in 3s... (type anything to interrupt)"],
+      { placement: "aboveEditor" },
+    );
+  } else {
+    pi.sendMessage(
+      {
+        customType: "workflow:countdown",
+        content: "Auto-continuing workflow in 3s... (type anything to interrupt)",
+        display: true,
+      },
+      { triggerTurn: false },
+    );
+    setTimeout(() => {
+      try {
+        pi.sendUserMessage(reminder);
+      } catch {
+        // User already started typing — skip auto-continue
+      }
+    }, 3000);
+  }
+}
+
 export function handleAgentEnd(
   pi: ExtensionAPI,
   state: WorkflowState | null,
@@ -156,43 +239,25 @@ export function handleAgentEnd(
   if (!state) return noOp;
   // Case A: Workflow just reached DONE (not yet notified)
   if (!state.active && !state.completionNotified) {
+    const definition = definitions[state.workflowKey];
     if (state.cancelled) {
-      // Cancellation — send cancelled message and unload
-      const definition = definitions[state.workflowKey];
-      if (definition) {
-        const msg = resolveTemplate(definition.completionMessage ?? DEFAULT_CANCELLED_MESSAGE, {
-          workflowName: definition.name,
-          taskDescription: state.taskDescription,
-          taskId: state.taskId,
-          phaseCount: String(definition.phases.length),
-        });
-        pi.sendMessage(
-          { customType: "workflow:complete", content: msg, display: true },
-          { triggerTurn: false },
-        );
-      }
+      sendCompletionMessage(
+        pi, definition, state,
+        definition.completionMessage ?? DEFAULT_CANCELLED_MESSAGE,
+      );
       ctx.ui.setStatus("workflow", undefined);
       return { unload: true, persist: false };
     }
-    // Normal completion — send visible feedback to the user
-    const completionDef = definitions[state.workflowKey];
-    if (completionDef) {
-      pi.sendMessage(
-        {
-          customType: "workflow:complete",
-          content: `✅ Workflow "${state.taskDescription}" complete!`,
-          display: true,
-        },
-        { triggerTurn: false },
-      );
-    }
+    sendCompletionMessage(
+      pi, definition, state,
+      definition.completionMessage ?? DEFAULT_COMPLETION_MESSAGE,
+    );
     state.completionNotified = true;
     ctx.ui.setStatus("workflow", undefined);
     return { unload: true, persist: true };
   }
   // Case B: Workflow is still active (agent tried to stop mid-workflow)
   if (state.active) {
-    // If the user interrupted the agent, don't enforce continuation
     if (wasAborted(event.messages)) {
       return noOp;
     }
@@ -208,65 +273,7 @@ export function handleAgentEnd(
       taskId: state.taskId,
       workflowKey: state.workflowKey,
     });
-    // Show live countdown widget and auto-continue after 3 seconds
-    if (ctx.hasUI) {
-      // Clear any existing countdown to prevent stacked intervals
-      if (activeCountdown !== null) {
-        clearInterval(activeCountdown);
-      }
-
-      let remaining = 3;
-      const interval = setInterval(() => {
-        try {
-          remaining--;
-          if (remaining > 0) {
-            ctx.ui.setWidget(
-              "workflow-countdown",
-              [`⏳ Auto-continuing in ${remaining}s... (type anything to interrupt)`],
-              { placement: "aboveEditor" },
-            );
-          } else {
-            clearInterval(interval);
-            activeCountdown = null;
-            ctx.ui.setWidget("workflow-countdown", undefined);
-            try {
-              pi.sendUserMessage(reminder);
-            } catch {
-              // User already started typing — skip auto-continue
-            }
-          }
-        } catch {
-          clearInterval(interval);
-          activeCountdown = null;
-          ctx.ui.setWidget("workflow-countdown", undefined);
-        }
-      }, 1000);
-      activeCountdown = interval;
-
-      // Show initial widget immediately (3s)
-      ctx.ui.setWidget(
-        "workflow-countdown",
-        ["⏳ Auto-continuing in 3s... (type anything to interrupt)"],
-        { placement: "aboveEditor" },
-      );
-    } else {
-      // Fallback for RPC/print mode — no UI available
-      pi.sendMessage(
-        {
-          customType: "workflow:countdown",
-          content: "Auto-continuing workflow in 3s... (type anything to interrupt)",
-          display: true,
-        },
-        { triggerTurn: false },
-      );
-      setTimeout(() => {
-        try {
-          pi.sendUserMessage(reminder);
-        } catch {
-          // User already started typing — skip auto-continue
-        }
-      }, 3000);
-    }
+    startCountdown(pi, ctx, reminder);
     return noOp;
   }
   return noOp;

@@ -43,16 +43,17 @@
     "@earendil-works/pi-coding-agent": "^0.74.0"
   },
   "dependencies": {
-    "yaml": "^2.8.2",
-    "typebox": "^1.1.24",
+    "@earendil-works/pi-ai": "^0.74.0",
     "@earendil-works/pi-tui": "^0.74.0",
-    "@earendil-works/pi-ai": "^0.74.0"
+    "typebox": "^1.1.24",
+    "yaml": "^2.8.2"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.6",
-    "vitest": "^4.1.6",
     "eslint": "^9.0.0",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.0.0",
     "typescript-eslint": "^8.0.0",
-    "prettier": "^3.0.0"
+    "vitest": "^4.1.6"
   }
 }

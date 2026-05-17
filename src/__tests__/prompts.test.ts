@@ -13,35 +13,18 @@ import type {
   PathSegment,
   PhaseEntry,
 } from "../types";
+import {
+  PROMPTS_PHASE_1 as phase1,
+  PROMPTS_PHASE_2 as phase2,
+  PROMPTS_PHASE_WITH_PROFILES as phaseWithProfiles,
+  makePromptsLinearDef,
+} from "./helpers/fixtures";
+
+// ── Test Fixture Definitions (from shared helpers) ──
+
+const linearDef = makePromptsLinearDef();
 
 // ── Helpers ──
-
-const phase1: PhaseDefinition = {
-  id: "p1",
-  name: "Phase 1",
-  emoji: "1️⃣",
-  instructions: "Do phase 1 stuff",
-};
-const phase2: PhaseDefinition = {
-  id: "p2",
-  name: "Phase 2",
-  emoji: "2️⃣",
-  instructions: "Do phase 2 stuff",
-};
-const phaseWithProfiles: PhaseDefinition = {
-  id: "pp",
-  name: "Profile Phase",
-  emoji: "👤",
-  instructions: "Use profiles",
-  availableProfiles: ["coder", "reviewer"],
-};
-
-const linearDef: WorkflowDefinition = {
-  name: "Linear",
-  commandName: "lin",
-  initialMessage: "Start",
-  phases: [phase1, phase2],
-};
 
 function makeActive(
   def: WorkflowDefinition,

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createMockAPI, createMockContext } from "./helpers/mocks";
-import type { WorkflowState, WorkflowDefinition } from "../types";
+import { makeDefinition, makeActiveState } from "./helpers/fixtures";
+import type { WorkflowState } from "../types";
 
 // ── Mock all modules that index.ts imports ──
 
@@ -19,6 +20,10 @@ const mockRegisterRenderers = vi.fn();
 
 vi.mock("../config", () => ({
   loadWorkflows: (...args: unknown[]) => mockLoadWorkflows(...args),
+  findWorkflowByCommandName: vi.fn(),
+  resolveTemplate: vi.fn(),
+  getBlockedTools: vi.fn(),
+  getWhitelist: vi.fn(),
 }));
 
 vi.mock("../state", () => ({
@@ -52,44 +57,14 @@ import indexModule from "../index";
 
 // ── Helpers ──
 
-function makeDefinition(): Record<string, WorkflowDefinition> {
-  return {
-    "test-wf": {
-      name: "Test Workflow",
-      commandName: "test",
-      initialMessage: "Start",
-      phases: [
-        {
-          id: "p1",
-          name: "Phase 1",
-          emoji: "🔍",
-          instructions: "Do something",
-        },
-      ],
-    },
-  };
-}
-
-function makeActiveState(): WorkflowState {
-  return {
-    active: true,
-    workflowKey: "test-wf",
-    currentPath: [{ workflowKey: "test-wf", phaseIndex: 0 }],
-    globalStepCount: 0,
-    taskId: "wf-test-123",
-    taskDescription: "Test task",
-    startedAt: Date.now(),
-    completionNotified: false,
-    cancelled: false,
-  };
-}
+// Fixtures imported from helpers/fixtures.ts
 
 /** Initialize the extension and return a map of eventName → handler callback. */
 function initAndGetHandlers() {
   const { api, on } = createMockAPI();
   const ctx = createMockContext();
 
-  mockLoadWorkflows.mockResolvedValue(makeDefinition());
+  mockLoadWorkflows.mockReturnValue(makeDefinition());
   mockReconstructState.mockReturnValue(makeActiveState());
   mockHandleAgentEnd.mockReturnValue({ unload: false, persist: false });
 
@@ -155,7 +130,7 @@ describe("session_start handler", () => {
     const defs = makeDefinition();
     const state = makeActiveState();
 
-    mockLoadWorkflows.mockResolvedValue(defs);
+    mockLoadWorkflows.mockReturnValue(defs);
     mockReconstructState.mockReturnValue(state);
 
     await handlers["session_start"]({}, ctx);
@@ -166,19 +141,19 @@ describe("session_start handler", () => {
     expect(mockUpdateStatus).toHaveBeenCalledWith(ctx, state, defs);
   });
 
-  it("catches and swallows stale errors", async () => {
+  it("catches and swallows stale errors", () => {
     const { handlers, ctx } = initAndGetHandlers();
-    mockLoadWorkflows.mockRejectedValue(new Error("stale context"));
+    mockLoadWorkflows.mockImplementation(() => { throw new Error("stale context"); });
 
     // Should NOT throw
-    await expect(handlers["session_start"]({}, ctx)).resolves.toBeUndefined();
+    expect(() => handlers["session_start"]({}, ctx)).not.toThrow();
   });
 
-  it("re-throws non-stale errors", async () => {
+  it("re-throws non-stale errors", () => {
     const { handlers, ctx } = initAndGetHandlers();
-    mockLoadWorkflows.mockRejectedValue(new Error("disk failure"));
+    mockLoadWorkflows.mockImplementation(() => { throw new Error("disk failure"); });
 
-    await expect(handlers["session_start"]({}, ctx)).rejects.toThrow("disk failure");
+    expect(() => handlers["session_start"]({}, ctx)).toThrow("disk failure");
   });
 });
 
@@ -188,7 +163,7 @@ describe("session_tree handler", () => {
     const defs = makeDefinition();
     const state = makeActiveState();
 
-    mockLoadWorkflows.mockResolvedValue(defs);
+    mockLoadWorkflows.mockReturnValue(defs);
     mockReconstructState.mockReturnValue(state);
 
     await handlers["session_tree"]({}, ctx);
@@ -199,18 +174,18 @@ describe("session_tree handler", () => {
     expect(mockUpdateStatus).toHaveBeenCalledWith(ctx, state, defs);
   });
 
-  it("catches and swallows stale errors", async () => {
+  it("catches and swallows stale errors", () => {
     const { handlers, ctx } = initAndGetHandlers();
-    mockLoadWorkflows.mockRejectedValue(new Error("stale context"));
+    mockLoadWorkflows.mockImplementation(() => { throw new Error("stale context"); });
 
-    await expect(handlers["session_tree"]({}, ctx)).resolves.toBeUndefined();
+    expect(() => handlers["session_tree"]({}, ctx)).not.toThrow();
   });
 
-  it("re-throws non-stale errors", async () => {
+  it("re-throws non-stale errors", () => {
     const { handlers, ctx } = initAndGetHandlers();
-    mockLoadWorkflows.mockRejectedValue(new Error("filesystem error"));
+    mockLoadWorkflows.mockImplementation(() => { throw new Error("filesystem error"); });
 
-    await expect(handlers["session_tree"]({}, ctx)).rejects.toThrow("filesystem error");
+    expect(() => handlers["session_tree"]({}, ctx)).toThrow("filesystem error");
   });
 });
 
@@ -271,7 +246,7 @@ describe("agent_end handler", () => {
     const event = { type: "agent_end", messages: [] };
 
     // Need to set state via session_start first, so the internal state is non-null
-    mockLoadWorkflows.mockResolvedValue(makeDefinition());
+    mockLoadWorkflows.mockReturnValue(makeDefinition());
     mockReconstructState.mockReturnValue(state);
     await handlers["session_start"]({}, ctx);
 
@@ -289,7 +264,7 @@ describe("agent_end handler", () => {
     const state = makeActiveState();
 
     // Initialize state
-    mockLoadWorkflows.mockResolvedValue(makeDefinition());
+    mockLoadWorkflows.mockReturnValue(makeDefinition());
     mockReconstructState.mockReturnValue(state);
     await handlers["session_start"]({}, ctx);
 
@@ -316,7 +291,7 @@ describe("agent_end handler", () => {
     const state = makeActiveState();
 
     // Initialize state
-    mockLoadWorkflows.mockResolvedValue(makeDefinition());
+    mockLoadWorkflows.mockReturnValue(makeDefinition());
     mockReconstructState.mockReturnValue(state);
     await handlers["session_start"]({}, ctx);
 
@@ -338,24 +313,24 @@ describe("agent_end handler", () => {
     );
   });
 
-  it("catches and swallows stale errors", async () => {
+  it("catches and swallows stale errors", () => {
     const { handlers, ctx } = initAndGetHandlers();
     mockHandleAgentEnd.mockImplementation(() => {
       throw new Error("stale context");
     });
 
-    await expect(
+    expect(() =>
       handlers["agent_end"]({ type: "agent_end", messages: [] }, ctx),
-    ).resolves.toBeUndefined();
+    ).not.toThrow();
   });
 
-  it("re-throws non-stale errors", async () => {
+  it("re-throws non-stale errors", () => {
     const { handlers, ctx } = initAndGetHandlers();
     mockHandleAgentEnd.mockImplementation(() => {
       throw new Error("something broke");
     });
 
-    await expect(handlers["agent_end"]({ type: "agent_end", messages: [] }, ctx)).rejects.toThrow(
+    expect(() => handlers["agent_end"]({ type: "agent_end", messages: [] }, ctx)).toThrow(
       "something broke",
     );
   });
@@ -370,21 +345,21 @@ describe("turn_end handler", () => {
     expect(mockUpdateStatus).toHaveBeenCalledWith(ctx, null, {});
   });
 
-  it("catches and swallows stale errors from updateStatus", async () => {
+  it("catches and swallows stale errors from updateStatus", () => {
     const { handlers, ctx } = initAndGetHandlers();
     mockUpdateStatus.mockImplementation(() => {
       throw new Error("stale context");
     });
 
-    await expect(handlers["turn_end"]({}, ctx)).resolves.toBeUndefined();
+    expect(() => handlers["turn_end"]({}, ctx)).not.toThrow();
   });
 
-  it("re-throws non-stale errors from updateStatus", async () => {
+  it("re-throws non-stale errors from updateStatus", () => {
     const { handlers, ctx } = initAndGetHandlers();
     mockUpdateStatus.mockImplementation(() => {
       throw new Error("render error");
     });
 
-    await expect(handlers["turn_end"]({}, ctx)).rejects.toThrow("render error");
+    expect(() => handlers["turn_end"]({}, ctx)).toThrow("render error");
   });
 });

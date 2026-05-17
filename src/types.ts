@@ -69,7 +69,7 @@ export type PhaseEntry = PhaseDefinition | SubworkflowReference;
 
 /** Returns true if the entry is a SubworkflowReference. */
 export function isSubworkflowRef(entry: PhaseEntry): entry is SubworkflowReference {
-  return "subworkflow" in entry && entry.subworkflow === true;
+  return "subworkflow" in entry;
 }
 
 /** Returns true if the entry is a plain PhaseDefinition (not a subworkflow reference). */
@@ -136,23 +136,6 @@ export interface WorkflowDefinition {
    * Template variables: {workflowName}, {phaseName}, {phaseEmoji}, {phaseInstructions}.
    */
   notDoneReminder?: string;
-}
-
-// ── Settings Shape ──
-
-/**
- * Expected structure under the "workflows" key in settings.json:
- * {
- *   "workflows": {
- *     "definitions": {
- *       "rpir": { ...WorkflowDefinition },
- *       "code-review": { ...WorkflowDefinition }
- *     }
- *   }
- * }
- */
-export interface WorkflowSettings {
-  definitions: Record<string, WorkflowDefinition>;
 }
 
 // ── Runtime State ──

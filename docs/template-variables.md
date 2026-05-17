@@ -2,7 +2,7 @@
 
 ## Overview
 
-Pi-workflows uses a `{varName}` template syntax throughout its configurable strings — phase instructions, role instructions, block reasons, completion messages, and more. Templates are resolved by `resolveTemplate()` in `src/config.ts`.
+Pi-workflows uses a `{varName}` template syntax throughout its configurable strings — phase instructions, role instructions, block reasons, completion messages, and more. Templates are resolved by `resolveTemplate()` in `src/config/templates.ts`.
 
 **Resolution rules:**
 
@@ -13,7 +13,7 @@ Pi-workflows uses a `{varName}` template syntax throughout its configurable stri
 | No curly braces | Plain text passes through unchanged |
 
 ```typescript
-// Simplified from src/config.ts
+// Simplified from src/config/templates.ts
 function resolveTemplate(template: string, vars: Record<string, string>): string {
   return template.replace(/\{(\w+)\}/g, (_match, key: string) => {
     return vars[key] !== undefined ? vars[key] : `{${key}}`;

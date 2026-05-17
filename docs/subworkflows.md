@@ -410,9 +410,9 @@ For the complete `workflow.yaml` schema including all fields (role instructions,
 
 | Function | Module | Purpose |
 |----------|--------|---------|
-| `loadWorkflows(cwd?)` | `config.ts` | Two-pass loading: directories → validate → cycle detect → resolve references |
-| `detectCycles(definitions)` | `config.ts` | DFS 3-color cycle detection; returns error messages for cycles found |
-| `validateWorkflowDefinition(key, def)` | `config.ts` | Validates a single definition; relaxed rules when `show: "workflows"` |
+| `loadWorkflows(cwd?)` | `config/loading.ts` | Two-pass loading: directories → validate → cycle detect → resolve references |
+| `detectCycles(definitions)` | `config/validation.ts` | DFS 3-color cycle detection; returns error messages for cycles found |
+| `validateWorkflowDefinition(key, def)` | `config/validation.ts` | Validates a single definition; relaxed rules when `show: "workflows"` |
 | `advancePhase(state, definitions)` | `state.ts` | Four-case stack navigation (enter/advance/done/breakout) |
 | `loopPhase(state, definitions)` | `state.ts` | Restart innermost scope from phase 0 |
 | `resolveActive(state, definitions)` | `state.ts` | Resolve state to `ActiveWorkflow` with breadcrumb |

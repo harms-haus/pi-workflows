@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type {
   WorkflowState,
   WorkflowDefinition,
-  PhaseDefinition,
   SetState,
   ReloadDefinitions,
 } from "../types";
@@ -33,43 +32,15 @@ vi.mock("../state", async (importOriginal) => {
 });
 
 import { registerWorkflowCommand, registerCancelWorkflowCommand } from "../command";
+import {
+  CMD_TEST_DEFINITION as testDefinition,
+  CMD_SUB_DEFINITION as subDefinition,
+  makeCommandDefs,
+} from "./helpers/fixtures";
 
-// ── Fixtures ──
+// ── Fixtures (from shared helpers) ──
 
-const phase1: PhaseDefinition = {
-  id: "p1",
-  name: "Phase 1",
-  emoji: "1️⃣",
-  instructions: "Do stuff",
-};
-
-const testDefinition: WorkflowDefinition = {
-  name: "Test",
-  commandName: "test-cmd",
-  initialMessage: "Starting {workflowName}",
-  show: "user",
-  phases: [phase1],
-};
-
-const subSubPhase1: PhaseDefinition = {
-  id: "sp1",
-  name: "Sub Phase 1",
-  emoji: "🔨",
-  instructions: "Build",
-};
-
-const subDefinition: WorkflowDefinition = {
-  name: "Sub",
-  commandName: "sub-cmd",
-  initialMessage: "Sub start",
-  show: "workflows",
-  phases: [subSubPhase1],
-};
-
-const definitions: Record<string, WorkflowDefinition> = {
-  "test-workflow": testDefinition,
-  "sub-workflow": subDefinition,
-};
+const definitions = makeCommandDefs();
 
 // ── Mock helpers ──
 
@@ -137,12 +108,12 @@ describe("registerWorkflowCommand", () => {
     state = null;
     setState = vi.fn((s: WorkflowState | null) => {
       state = s;
-    }) as unknown as SetState;
-    reloadDefinitions = vi.fn(async () => ({ ...definitions })) as ReloadDefinitions;
+    });
+    reloadDefinitions = vi.fn(() => Promise.resolve({ ...definitions }));
     ctx = createMockCtx();
 
     // Default mocks
-    mockLoadWorkflows.mockResolvedValue({ ...definitions });
+    mockLoadWorkflows.mockReturnValue({ ...definitions });
     mockFindWorkflowByCommandName.mockImplementation(
       (workflows: Record<string, WorkflowDefinition>, commandName: string) => {
         for (const [key, def] of Object.entries(workflows)) {
@@ -347,7 +318,7 @@ describe("registerWorkflowCommand", () => {
 
   describe("tab completion", () => {
     it("returns matching workflow names for user-visible workflows", async () => {
-      mockLoadWorkflows.mockResolvedValue(definitions);
+      mockLoadWorkflows.mockReturnValue(definitions);
       const cmd = mockPI.commands.get("workflow")!;
       const completions = await cmd.getArgumentCompletions!("test");
 
@@ -355,7 +326,7 @@ describe("registerWorkflowCommand", () => {
     });
 
     it("excludes subworkflow-only workflows from completions", async () => {
-      mockLoadWorkflows.mockResolvedValue(definitions);
+      mockLoadWorkflows.mockReturnValue(definitions);
       const cmd = mockPI.commands.get("workflow")!;
       const completions = await cmd.getArgumentCompletions!("sub");
 
@@ -364,7 +335,7 @@ describe("registerWorkflowCommand", () => {
     });
 
     it("returns null when no workflows match the prefix", async () => {
-      mockLoadWorkflows.mockResolvedValue(definitions);
+      mockLoadWorkflows.mockReturnValue(definitions);
       const cmd = mockPI.commands.get("workflow")!;
       const completions = await cmd.getArgumentCompletions!("zzz");
 
@@ -372,7 +343,7 @@ describe("registerWorkflowCommand", () => {
     });
 
     it("returns all user-visible workflows when prefix is empty", async () => {
-      mockLoadWorkflows.mockResolvedValue(definitions);
+      mockLoadWorkflows.mockReturnValue(definitions);
       const cmd = mockPI.commands.get("workflow")!;
       const completions = await cmd.getArgumentCompletions!("");
 
@@ -394,7 +365,7 @@ describe("registerCancelWorkflowCommand", () => {
     state = null;
     setState = vi.fn((s: WorkflowState | null) => {
       state = s;
-    }) as unknown as SetState;
+    });
     ctx = createMockCtx();
 
     registerCancelWorkflowCommand(mockPI.api, () => state, setState);
