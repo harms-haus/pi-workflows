@@ -45,7 +45,7 @@ export function buildContextPrompt(active: ActiveWorkflow): string {
   if (nextPhase) {
     nextPhaseName =
       isSubworkflowRef(nextPhase) && nextPhase.resolved
-        ? (nextPhase.resolved.name)
+        ? nextPhase.resolved.name
         : isSubworkflowRef(nextPhase)
           ? nextPhase.workflowKey
           : nextPhase.name;

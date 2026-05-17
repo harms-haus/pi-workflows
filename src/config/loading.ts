@@ -105,8 +105,7 @@ function setOptionalFields(raw: RawWorkflowYaml, workflow: WorkflowDefinition): 
   if (typeof raw.advanceReminder === "string") workflow.advanceReminder = raw.advanceReminder;
   if (typeof raw.blockReasonTemplate === "string")
     workflow.blockReasonTemplate = raw.blockReasonTemplate;
-  if (typeof raw.completionMessage === "string")
-    workflow.completionMessage = raw.completionMessage;
+  if (typeof raw.completionMessage === "string") workflow.completionMessage = raw.completionMessage;
   if (typeof raw.notDoneReminder === "string") workflow.notDoneReminder = raw.notDoneReminder;
 }
 
@@ -336,7 +335,9 @@ function removeKeys(
 }
 
 /** Detect and remove workflow definitions with cyclic subworkflow references. */
-function removeCycles(valid: Record<string, WorkflowDefinition>): Record<string, WorkflowDefinition> {
+function removeCycles(
+  valid: Record<string, WorkflowDefinition>,
+): Record<string, WorkflowDefinition> {
   const cycleErrors = detectCycles(valid);
   if (cycleErrors.length === 0) return valid;
 

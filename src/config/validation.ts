@@ -183,7 +183,8 @@ function processNeighbor(
   stack: Array<{ key: string; neighborIdx: number; phase: "enter" | "exit" }>,
   errors: string[],
 ): void {
-  const WHITE = 0, GRAY = 1;
+  const WHITE = 0,
+    GRAY = 1;
   const neighborColor = color.get(neighbor) ?? WHITE;
 
   if (neighborColor === GRAY) {
@@ -208,7 +209,9 @@ export function detectCycles(definitions: Record<string, WorkflowDefinition>): s
   const keys = Object.keys(definitions);
   const adj = buildAdjacencyList(definitions);
 
-  const WHITE = 0, GRAY = 1, BLACK = 2;
+  const WHITE = 0,
+    GRAY = 1,
+    BLACK = 2;
   const color = new Map<string, number>();
   for (const key of keys) {
     color.set(key, WHITE);

@@ -2,7 +2,13 @@ import { StringEnum } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { Container, Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
-import type { WorkflowState, GetState, SetState, GetDefinitions, WorkflowDefinition } from "./types";
+import type {
+  WorkflowState,
+  GetState,
+  SetState,
+  GetDefinitions,
+  WorkflowDefinition,
+} from "./types";
 import { advancePhase, persistState, resolveActive, isActive, loopPhase } from "./state";
 
 // ── Shared Utility Functions ──
@@ -14,7 +20,8 @@ function textPart(text: string): { type: "text"; text: string } {
 
 /** Standard "no active workflow" response, with an optional description message. */
 function noActiveWorkflowResponse(description?: string) {
-  const text = description ?? "No active workflow. Use /workflow {name} {description} to start one.";
+  const text =
+    description ?? "No active workflow. Use /workflow {name} {description} to start one.";
   return {
     content: [textPart(text)],
     details: { active: false },
@@ -165,9 +172,7 @@ function handleNext(
     persistState(pi, newState);
     ctx.ui.setStatus("workflow", undefined);
     return {
-      content: [
-        textPart(`✓ Advanced: ${currentPhase.name} → DONE\n\n🎉 **All phases complete!**`),
-      ],
+      content: [textPart(`✓ Advanced: ${currentPhase.name} → DONE\n\n🎉 **All phases complete!**`)],
       details: { advanced: true, from: currentPhase.name, to: "DONE" },
     };
   }
@@ -314,8 +319,7 @@ export function registerWorkflowTool(
     },
     renderCall(args, theme) {
       return new Text(
-        theme.fg("toolTitle", theme.bold("workflow_step ")) +
-          theme.fg("accent", args.action),
+        theme.fg("toolTitle", theme.bold("workflow_step ")) + theme.fg("accent", args.action),
         0,
         0,
       );

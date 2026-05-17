@@ -70,7 +70,11 @@ export function makeStateParentDef(): WorkflowDefinition {
     name: "Parent",
     commandName: "par",
     initialMessage: "Start",
-    phases: [STATE_PHASE_1, { subworkflow: true, workflowKey: "sub", resolved: subDef }, STATE_PHASE_3],
+    phases: [
+      STATE_PHASE_1,
+      { subworkflow: true, workflowKey: "sub", resolved: subDef },
+      STATE_PHASE_3,
+    ],
   };
 }
 
@@ -153,7 +157,11 @@ export function makeToolParentDef(): WorkflowDefinition {
     name: "Parent",
     commandName: "par",
     initialMessage: "Start",
-    phases: [TOOL_PHASE_1, { subworkflow: true, workflowKey: "sub", resolved: subDef }, TOOL_PHASE_3],
+    phases: [
+      TOOL_PHASE_1,
+      { subworkflow: true, workflowKey: "sub", resolved: subDef },
+      TOOL_PHASE_3,
+    ],
   };
 }
 
@@ -300,9 +308,7 @@ export function makeDefinition(): Record<string, WorkflowDefinition> {
 }
 
 /** Creates a minimal active workflow state for testing. */
-export function makeActiveState(
-  overrides: Partial<WorkflowState> = {},
-): WorkflowState {
+export function makeActiveState(overrides: Partial<WorkflowState> = {}): WorkflowState {
   return {
     active: true,
     workflowKey: "test-wf",

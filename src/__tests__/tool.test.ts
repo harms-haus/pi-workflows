@@ -3,10 +3,7 @@ import { Text, Container } from "@earendil-works/pi-tui";
 import { registerWorkflowTool } from "../tool";
 import { createMockAPI, createMockContext } from "./helpers/mocks";
 import type { WorkflowState, WorkflowDefinition } from "../types";
-import {
-  makeToolActiveState as makeActiveState,
-  makeToolAllDefs,
-} from "./helpers/fixtures";
+import { makeToolActiveState as makeActiveState, makeToolAllDefs } from "./helpers/fixtures";
 
 // ── Test Fixture Definitions (from shared helpers) ──
 
@@ -399,16 +396,34 @@ describe("workflow_step tool", () => {
       const ctx = createMockContext();
       let currentState: WorkflowState | null = state;
       const getState = () => currentState;
-      const setState = (s: WorkflowState | null) => { currentState = s; };
-      const getDefinitions = () => ({ nonexistent: { name: "Ghost", commandName: "ghost", initialMessage: "", phases: [{ id: "p1", name: "P1", emoji: "1", instructions: "do" }, { id: "p2", name: "P2", emoji: "2", instructions: "do" }] } satisfies WorkflowDefinition });
+      const setState = (s: WorkflowState | null) => {
+        currentState = s;
+      };
+      const getDefinitions = () => ({
+        nonexistent: {
+          name: "Ghost",
+          commandName: "ghost",
+          initialMessage: "",
+          phases: [
+            { id: "p1", name: "P1", emoji: "1", instructions: "do" },
+            { id: "p2", name: "P2", emoji: "2", instructions: "do" },
+          ],
+        } satisfies WorkflowDefinition,
+      });
 
       registerWorkflowTool(api, getState, getDefinitions, setState);
 
       const toolConfig = registerTool.mock.calls[0][0] as Record<string, unknown>;
       const execute = toolConfig.execute as (
-        toolCallId: string, params: Record<string, unknown>, signal: unknown,
-        onUpdate: unknown, ctx: unknown,
-      ) => Promise<{ content: Array<{ type: string; text: string }>; details: Record<string, unknown> }>;
+        toolCallId: string,
+        params: Record<string, unknown>,
+        signal: unknown,
+        onUpdate: unknown,
+        ctx: unknown,
+      ) => Promise<{
+        content: Array<{ type: string; text: string }>;
+        details: Record<string, unknown>;
+      }>;
 
       const result = await execute("call-1", { action: "loop" }, undefined, undefined, ctx);
 
@@ -534,7 +549,9 @@ describe("workflow_step tool", () => {
       const { renderResult } = setupTool(null);
 
       const result = {
-        content: [{ type: "text" as const, text: "⚠️ **Confirm cancellation** of workflow?\nCall again." }],
+        content: [
+          { type: "text" as const, text: "⚠️ **Confirm cancellation** of workflow?\nCall again." },
+        ],
         details: { cancelPending: true },
       };
 
@@ -548,7 +565,7 @@ describe("workflow_step tool", () => {
       const { renderResult } = setupTool(null);
 
       const result = {
-        content: [{ type: "text" as const, text: "Workflow cancelled: \"test\"" }],
+        content: [{ type: "text" as const, text: 'Workflow cancelled: "test"' }],
         details: { cancelled: true },
       };
 
@@ -562,7 +579,12 @@ describe("workflow_step tool", () => {
       const { renderResult } = setupTool(null);
 
       const result = {
-        content: [{ type: "text" as const, text: "✓ Advanced: Phase 3 → DONE\n\n🎉 **All phases complete!**" }],
+        content: [
+          {
+            type: "text" as const,
+            text: "✓ Advanced: Phase 3 → DONE\n\n🎉 **All phases complete!**",
+          },
+        ],
         details: { advanced: true, to: "DONE" },
       };
 
@@ -576,10 +598,12 @@ describe("workflow_step tool", () => {
       const { renderResult } = setupTool(null);
 
       const result = {
-        content: [{
-          type: "text" as const,
-          text: "✓ Advanced: Phase 1 → 2️⃣ Phase 2\n\n**What to do in Phase 2:**\nDo second",
-        }],
+        content: [
+          {
+            type: "text" as const,
+            text: "✓ Advanced: Phase 1 → 2️⃣ Phase 2\n\n**What to do in Phase 2:**\nDo second",
+          },
+        ],
         details: { advanced: true },
       };
 
@@ -595,16 +619,15 @@ describe("workflow_step tool", () => {
     it("returns Container when content is not text", () => {
       const { renderResult } = setupTool(null);
 
-      const result: { content: Array<{ type: string; text: string }>; details: Record<string, unknown> } = {
+      const result: {
+        content: Array<{ type: string; text: string }>;
+        details: Record<string, unknown>;
+      } = {
         content: [{ type: "image", text: "" }],
         details: {},
       };
 
-      const component = renderResult(
-        result,
-        {},
-        theme,
-      );
+      const component = renderResult(result, {}, theme);
       expect(component).toBeInstanceOf(Container);
     });
 

@@ -1063,9 +1063,7 @@ describe("validateWorkflowDefinition – uncovered branches", () => {
 
   it("concrete phase missing id → error", () => {
     const def = makeUserDef({
-      phases: [
-        { name: "P1", emoji: "⚡", instructions: "Do stuff" } as unknown as PhaseDefinition,
-      ],
+      phases: [{ name: "P1", emoji: "⚡", instructions: "Do stuff" } as unknown as PhaseDefinition],
     });
     const result = validateWorkflowDefinition("test", def);
     expect(result).not.toBeNull();
@@ -1074,9 +1072,7 @@ describe("validateWorkflowDefinition – uncovered branches", () => {
 
   it("concrete phase missing name → error", () => {
     const def = makeUserDef({
-      phases: [
-        { id: "p1", emoji: "⚡", instructions: "Do stuff" } as unknown as PhaseDefinition,
-      ],
+      phases: [{ id: "p1", emoji: "⚡", instructions: "Do stuff" } as unknown as PhaseDefinition],
     });
     const result = validateWorkflowDefinition("test", def);
     expect(result).not.toBeNull();
@@ -1085,9 +1081,7 @@ describe("validateWorkflowDefinition – uncovered branches", () => {
 
   it("concrete phase missing emoji → error", () => {
     const def = makeUserDef({
-      phases: [
-        { id: "p1", name: "P1", instructions: "Do stuff" } as unknown as PhaseDefinition,
-      ],
+      phases: [{ id: "p1", name: "P1", instructions: "Do stuff" } as unknown as PhaseDefinition],
     });
     const result = validateWorkflowDefinition("test", def);
     expect(result).not.toBeNull();
@@ -1096,9 +1090,7 @@ describe("validateWorkflowDefinition – uncovered branches", () => {
 
   it("concrete phase missing instructions → error", () => {
     const def = makeUserDef({
-      phases: [
-        { id: "p1", name: "P1", emoji: "⚡" } as unknown as PhaseDefinition,
-      ],
+      phases: [{ id: "p1", name: "P1", emoji: "⚡" } as unknown as PhaseDefinition],
     });
     const result = validateWorkflowDefinition("test", def);
     expect(result).not.toBeNull();
@@ -1220,7 +1212,7 @@ describe("loadWorkflowFromDir – uncovered branches", () => {
         ].join("\n");
       }
       if (p === phasePath) {
-        return '---\nid: p1\nname: Phase 1\n---\nNo emoji.';
+        return "---\nid: p1\nname: Phase 1\n---\nNo emoji.";
       }
       throw new Error(`Unexpected readFileSync: ${p}`);
     });

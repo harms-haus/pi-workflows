@@ -143,7 +143,9 @@ describe("session_start handler", () => {
 
   it("catches and swallows stale errors", () => {
     const { handlers, ctx } = initAndGetHandlers();
-    mockLoadWorkflows.mockImplementation(() => { throw new Error("stale context"); });
+    mockLoadWorkflows.mockImplementation(() => {
+      throw new Error("stale context");
+    });
 
     // Should NOT throw
     expect(() => handlers["session_start"]({}, ctx)).not.toThrow();
@@ -151,7 +153,9 @@ describe("session_start handler", () => {
 
   it("re-throws non-stale errors", () => {
     const { handlers, ctx } = initAndGetHandlers();
-    mockLoadWorkflows.mockImplementation(() => { throw new Error("disk failure"); });
+    mockLoadWorkflows.mockImplementation(() => {
+      throw new Error("disk failure");
+    });
 
     expect(() => handlers["session_start"]({}, ctx)).toThrow("disk failure");
   });
@@ -176,14 +180,18 @@ describe("session_tree handler", () => {
 
   it("catches and swallows stale errors", () => {
     const { handlers, ctx } = initAndGetHandlers();
-    mockLoadWorkflows.mockImplementation(() => { throw new Error("stale context"); });
+    mockLoadWorkflows.mockImplementation(() => {
+      throw new Error("stale context");
+    });
 
     expect(() => handlers["session_tree"]({}, ctx)).not.toThrow();
   });
 
   it("re-throws non-stale errors", () => {
     const { handlers, ctx } = initAndGetHandlers();
-    mockLoadWorkflows.mockImplementation(() => { throw new Error("filesystem error"); });
+    mockLoadWorkflows.mockImplementation(() => {
+      throw new Error("filesystem error");
+    });
 
     expect(() => handlers["session_tree"]({}, ctx)).toThrow("filesystem error");
   });
@@ -319,9 +327,7 @@ describe("agent_end handler", () => {
       throw new Error("stale context");
     });
 
-    expect(() =>
-      handlers["agent_end"]({ type: "agent_end", messages: [] }, ctx),
-    ).not.toThrow();
+    expect(() => handlers["agent_end"]({ type: "agent_end", messages: [] }, ctx)).not.toThrow();
   });
 
   it("re-throws non-stale errors", () => {

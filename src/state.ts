@@ -185,7 +185,9 @@ export function resolveActive(
   // Walk the path stack to validate all segments
   for (const segment of state.currentPath) {
     if (!(segment.workflowKey in definitions)) {
-      console.warn(`[pi-workflows] Path segment references missing workflow '${segment.workflowKey}'`);
+      console.warn(
+        `[pi-workflows] Path segment references missing workflow '${segment.workflowKey}'`,
+      );
       return null;
     }
   }
@@ -270,8 +272,7 @@ function migrateStateData(data: Record<string, unknown>): void {
     delete data.currentPhaseIndex;
   }
   if (data.currentPath && data.globalStepCount === undefined) {
-    data.globalStepCount =
-      (data.currentPath as Array<{ phaseIndex: number }>)[0]?.phaseIndex ?? 0;
+    data.globalStepCount = (data.currentPath as Array<{ phaseIndex: number }>)[0]?.phaseIndex ?? 0;
   }
 }
 
@@ -291,9 +292,7 @@ function validateReconstructedState(data: Record<string, unknown>): boolean {
       typeof (seg as Record<string, unknown>).workflowKey !== "string" ||
       typeof (seg as Record<string, unknown>).phaseIndex !== "number"
     ) {
-      console.warn(
-        "[pi-workflows] Invalid persisted state: malformed path segment. Discarding.",
-      );
+      console.warn("[pi-workflows] Invalid persisted state: malformed path segment. Discarding.");
       return false;
     }
   }

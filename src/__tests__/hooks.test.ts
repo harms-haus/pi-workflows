@@ -58,12 +58,16 @@ describe("clearActiveCountdown", () => {
 
   it("is safe to call when no countdown is active", () => {
     const ctx = createMockContext();
-    expect(() => { clearActiveCountdown(ctx); }).not.toThrow();
+    expect(() => {
+      clearActiveCountdown(ctx);
+    }).not.toThrow();
   });
 
   it("is safe when ctx.hasUI is false", () => {
     const ctx = createMockContext({ hasUI: false });
-    expect(() => { clearActiveCountdown(ctx); }).not.toThrow();
+    expect(() => {
+      clearActiveCountdown(ctx);
+    }).not.toThrow();
     expect(ctx.ui.setWidget).not.toHaveBeenCalled();
   });
 });
@@ -651,9 +655,7 @@ describe("handleAgentEnd — normal completion path", () => {
         commandName: "test",
         initialMessage: "Start",
         completionMessage: "🎉 {workflowName} is done! Task: {taskDescription}",
-        phases: [
-          { id: "p1", name: "Phase 1", emoji: "🔍", instructions: "Do it" },
-        ],
+        phases: [{ id: "p1", name: "Phase 1", emoji: "🔍", instructions: "Do it" }],
       },
     };
     const state: WorkflowState = {
@@ -755,9 +757,7 @@ describe("handleAgentEnd — cancellation path", () => {
         commandName: "test",
         initialMessage: "Start",
         completionMessage: "Custom cancel: {workflowName}",
-        phases: [
-          { id: "p1", name: "Phase 1", emoji: "🔍", instructions: "Do it" },
-        ],
+        phases: [{ id: "p1", name: "Phase 1", emoji: "🔍", instructions: "Do it" }],
       },
     };
     const state: WorkflowState = {

@@ -166,11 +166,7 @@ function sendCompletionMessage(
 }
 
 /** Start a countdown widget that auto-continues after a delay. */
-function startCountdown(
-  pi: ExtensionAPI,
-  ctx: ExtensionContext,
-  reminder: string,
-): void {
+function startCountdown(pi: ExtensionAPI, ctx: ExtensionContext, reminder: string): void {
   if (ctx.hasUI) {
     if (activeCountdown !== null) {
       clearInterval(activeCountdown);
@@ -242,14 +238,18 @@ export function handleAgentEnd(
     const definition = definitions[state.workflowKey];
     if (state.cancelled) {
       sendCompletionMessage(
-        pi, definition, state,
+        pi,
+        definition,
+        state,
         definition.completionMessage ?? DEFAULT_CANCELLED_MESSAGE,
       );
       ctx.ui.setStatus("workflow", undefined);
       return { unload: true, persist: false };
     }
     sendCompletionMessage(
-      pi, definition, state,
+      pi,
+      definition,
+      state,
       definition.completionMessage ?? DEFAULT_COMPLETION_MESSAGE,
     );
     state.completionNotified = true;

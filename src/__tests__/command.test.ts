@@ -1,10 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type {
-  WorkflowState,
-  WorkflowDefinition,
-  SetState,
-  ReloadDefinitions,
-} from "../types";
+import type { WorkflowState, WorkflowDefinition, SetState, ReloadDefinitions } from "../types";
 
 // ── Mock the config module ──
 // loadWorkflows reads from the filesystem so we must mock it.
