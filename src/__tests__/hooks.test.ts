@@ -743,8 +743,8 @@ describe("handleAgentEnd — cancellation path", () => {
     expect(callArgs.content).toContain("Cancelled task");
     expect(callArgs.content).toContain("task-55");
 
-    // Verify no persist for cancelled workflow
-    expect(result).toEqual({ unload: true, persist: false });
+    // Verify cancelled workflow is persisted and unloaded
+    expect(result).toEqual({ unload: true, persist: true });
     expect(ctx.ui.setStatus).toHaveBeenCalledWith("workflow", undefined);
   });
 
@@ -807,7 +807,7 @@ describe("handleAgentEnd — cancellation path", () => {
     expect(callArgs.content).toContain("Test Workflow Cancelled");
   });
 
-  it("does not set completionNotified when cancelled", () => {
+  it("sets completionNotified when cancelled", () => {
     const { api } = createMockAPI();
     const ctx = createMockContext();
     const defs = makeDefinition();
@@ -828,8 +828,40 @@ describe("handleAgentEnd — cancellation path", () => {
       messages: [mockMsg("stop")],
     });
 
-    // cancelled path does NOT set completionNotified = true
-    expect(state.completionNotified).toBe(false);
+    // cancelled path sets completionNotified = true to prevent duplicate messages
+    expect(state.completionNotified).toBe(true);
+  });
+
+  it("does not re-send cancel message on second handleAgentEnd call (regression)", () => {
+    const { api, sendMessage } = createMockAPI();
+    const ctx = createMockContext();
+    const defs = makeDefinition();
+    const state: WorkflowState = {
+      active: false,
+      workflowKey: "test-wf",
+      currentPath: [{ workflowKey: "test-wf", phaseIndex: 0 }],
+      globalStepCount: 1,
+      taskId: "t-1",
+      taskDescription: "desc",
+      startedAt: Date.now(),
+      completionNotified: false,
+      cancelled: true,
+    };
+
+    // First call — should send cancel message and set completionNotified
+    handleAgentEnd(api, state, defs, ctx, {
+      type: "agent_end" as const,
+      messages: [mockMsg("stop")],
+    });
+    expect(state.completionNotified).toBe(true);
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+
+    // Second call (e.g. from session_tree reconstruction) — should NOT send again
+    handleAgentEnd(api, state, defs, ctx, {
+      type: "agent_end" as const,
+      messages: [mockMsg("stop")],
+    });
+    expect(sendMessage).toHaveBeenCalledTimes(1);
   });
 });
 

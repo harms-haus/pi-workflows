@@ -243,8 +243,9 @@ export function handleAgentEnd(
         state,
         definition.completionMessage ?? DEFAULT_CANCELLED_MESSAGE,
       );
+      state.completionNotified = true;
       ctx.ui.setStatus("workflow", undefined);
-      return { unload: true, persist: false };
+      return { unload: true, persist: true };
     }
     sendCompletionMessage(
       pi,
