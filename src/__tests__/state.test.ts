@@ -7,6 +7,7 @@ import {
   reconstructState,
   isActive,
 } from "../state";
+import type { WorkflowDefinition } from "../types";
 import {
   STATE_PHASE_1 as phase1,
   STATE_PHASE_2 as phase2,
