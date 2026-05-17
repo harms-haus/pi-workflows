@@ -308,7 +308,7 @@ describe("updateStatus", () => {
 
     updateStatus(ctx, state, defs);
 
-    expect(setStatus).toHaveBeenCalledWith("workflow", "My Workflow — 🔍 Phase 1 [1/2]");
+    expect(setStatus).toHaveBeenCalledWith("workflow", "My Workflow > 🔍 Phase 1 [1/2]");
   });
 
   it("shows breadcrumb format for nested subworkflow", () => {
@@ -357,7 +357,72 @@ describe("updateStatus", () => {
 
     expect(setStatus).toHaveBeenCalledWith(
       "workflow",
-      "Outer Workflow > Inner Workflow — ⚙️ Inner Phase [1/2]",
+      "Outer Workflow > Inner Workflow [1/1] > ⚙️ Inner Phase [1/2]",
+    );
+  });
+
+  it("shows progress at every level for deeply nested workflow", () => {
+    const setStatus = vi.fn();
+    const ctx = { ui: { setStatus } };
+    const innermostDef: WorkflowDefinition = {
+      name: "Innermost",
+      commandName: "innermost",
+      initialMessage: "Go",
+      phases: [
+        { id: "im1", name: "Deep Phase 1", emoji: "🔬", instructions: "Deep work" },
+        { id: "im2", name: "Deep Phase 2", emoji: "🎯", instructions: "Final work" },
+      ],
+    };
+    const middleDef: WorkflowDefinition = {
+      name: "Middle",
+      commandName: "middle",
+      initialMessage: "Go",
+      phases: [
+        { id: "m1", name: "Mid Phase 1", emoji: "⚙️", instructions: "Mid work" },
+        {
+          subworkflow: true,
+          workflowKey: "innermost",
+          resolved: innermostDef,
+        },
+      ],
+    };
+    const defs: Record<string, WorkflowDefinition> = {
+      "top-wf": {
+        name: "Top Workflow",
+        commandName: "top",
+        initialMessage: "Start",
+        phases: [
+          {
+            subworkflow: true,
+            workflowKey: "middle",
+            resolved: middleDef,
+          },
+        ],
+      },
+      middle: middleDef,
+      innermost: innermostDef,
+    };
+    const state: WorkflowState = {
+      active: true,
+      workflowKey: "top-wf",
+      currentPath: [
+        { workflowKey: "top-wf", phaseIndex: 0 },
+        { workflowKey: "middle", phaseIndex: 1 },
+        { workflowKey: "innermost", phaseIndex: 0 },
+      ],
+      globalStepCount: 2,
+      taskId: "task-deep",
+      taskDescription: "deep nesting test",
+      startedAt: Date.now(),
+      completionNotified: false,
+      cancelled: false,
+    };
+
+    updateStatus(ctx, state, defs);
+
+    expect(setStatus).toHaveBeenCalledWith(
+      "workflow",
+      "Top Workflow > Middle [1/1] > Innermost [2/2] > 🔬 Deep Phase 1 [1/2]",
     );
   });
 
@@ -378,6 +443,58 @@ describe("updateStatus", () => {
 
     updateStatus(ctx, state, {});
 
+    expect(setStatus).toHaveBeenCalledWith("workflow", undefined);
+  });
+
+  it("clears status when intermediate segment has out-of-bounds phaseIndex", () => {
+    const setStatus = vi.fn();
+    const ctx = { ui: { setStatus } };
+
+    // Inner workflow has 2 phases
+    const innerDef: WorkflowDefinition = {
+      name: "Inner",
+      commandName: "inner",
+      initialMessage: "Go",
+      phases: [
+        { id: "i1", name: "Inner Phase 1", emoji: "⚙️", instructions: "Work" },
+        { id: "i2", name: "Inner Phase 2", emoji: "✅", instructions: "Done" },
+      ],
+    };
+
+    const defs: Record<string, WorkflowDefinition> = {
+      "top-wf": {
+        name: "Top Workflow",
+        commandName: "top",
+        initialMessage: "Start",
+        phases: [
+          { subworkflow: true, workflowKey: "inner", resolved: innerDef },
+        ],
+      },
+      inner: innerDef,
+    };
+
+    // resolveActive only validates the innermost segment's phaseIndex bounds.
+    // So currentPath = [{top-wf, 99}, {inner, 0}] passes resolveActive
+    // (all keys exist, inner@0 is valid) but updateStatus's loop hits
+    // top-wf.phases[99] which is undefined → bounds guard clears status.
+    const state: WorkflowState = {
+      active: true,
+      workflowKey: "top-wf",
+      currentPath: [
+        { workflowKey: "top-wf", phaseIndex: 99 }, // out of bounds!
+        { workflowKey: "inner", phaseIndex: 0 },  // valid, innermost
+      ],
+      globalStepCount: 1,
+      taskId: "task-oob",
+      taskDescription: "bounds test",
+      startedAt: Date.now(),
+      completionNotified: false,
+      cancelled: false,
+    };
+
+    updateStatus(ctx, state, defs);
+
+    // Should NOT crash; should clear status gracefully
     expect(setStatus).toHaveBeenCalledWith("workflow", undefined);
   });
 });

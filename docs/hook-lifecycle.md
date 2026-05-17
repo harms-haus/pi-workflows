@@ -37,30 +37,51 @@ function updateStatus(
 
 ### Logic
 
-1. **Inactive or null state** → calls `ctx.ui.setStatus("workflow", undefined)` to clear the status bar. Returns immediately.
-2. **Active state** → calls [`resolveActive(state, definitions)`](state-management.md) to get an `ActiveWorkflow`.
-3. **`resolveActive` returns null** (definition missing, phase index out of bounds) → clears status bar, returns.
-4. **Resolved successfully** → formats a status string and sets it.
+1. **Early-return conditions** → calls `ctx.ui.setStatus("workflow", undefined)` to clear the status bar and returns immediately if any of these conditions are met:
+   - `!state` (null state)
+   - `!state.active` (inactive state)
+   - `state.currentPath.length === 0` (empty path)
+   - `!(state.currentPath[0].workflowKey in definitions)` (missing root definition)
+
+2. **Build status parts array** → starts with the top-level workflow name.
+
+3. **Loop through `currentPath` segments** → for each segment, looks up its definition and phase entry:
+   - For `SubworkflowReference` entries: adds `{name} [current/total]` (no emoji)
+   - For `PhaseDefinition` entries: adds `{emoji} {name} [current/total]`
+
+4. **Bounds check** → if any segment's `phaseIndex` is out of bounds (>= phases.length), clears status bar and returns.
+
+5. **Format and set** → joins all parts with ` > ` and calls `ctx.ui.setStatus("workflow", statusString)`.
 
 ### Status Format
+
+All status strings use ` > ` as the segment separator. Every level in the path — including subworkflow containers — shows its own `[N/M]` progress counter. Emojis appear only on concrete `PhaseDefinition` entries; subworkflow levels (`SubworkflowReference`) show name + progress without an emoji.
 
 **Linear workflow** (`currentPath.length === 1`):
 
 ```
-{workflowName} — {phaseEmoji} {phaseName} [{current}/{total}]
+{workflowName} > {phaseEmoji} {phaseName} [{current}/{total}]
 ```
 
-Example: `RPIR — 🔍 Research [2/5]`
+Example: `CI/CD Pipeline > 📋 Planning [1/3]`
 
-**Nested workflow** (`currentPath.length > 1`) — breadcrumb format showing the path from top-level to innermost scope:
+**Nested workflow** (`currentPath.length === 2`) — shows the subworkflow container with its own progress, then the inner phase:
 
 ```
-{parentNames} > {innerName} — {phaseEmoji} {phaseName} [{innerCurrent}/{innerTotal}]
+{workflowName} > {subworkflowName} [{subCurrent}/{subTotal}] > {phaseEmoji} {phaseName} [{current}/{total}]
 ```
 
-Example: `RPIR > Code Review — 🔍 Deep Analysis [2/3]`
+Example: `Release Pipeline > Code Review [2/3] > 🔍 Static Analysis [1/2]`
 
-The inner total is derived from the innermost workflow definition's `phases.length`. Progress numbers are 1-indexed (`phaseIndex + 1`).
+**Deep nesting** (`currentPath.length > 2`) — each subworkflow level repeats the `{name} [N/M]` pattern, terminated by the leaf phase with its emoji:
+
+```
+{workflowName} > {sub1} [N/M] > {sub2} [N/M] > {phaseEmoji} {phaseName} [N/M]
+```
+
+Example: `RPIR Development > Implementation [3/5] > Testing [2/2] > 🧪 Unit Tests [1/4]`
+
+Progress numbers are 1-indexed (`phaseIndex + 1`). Each level's total comes from the corresponding workflow definition's `phases.length`.
 
 ---
 

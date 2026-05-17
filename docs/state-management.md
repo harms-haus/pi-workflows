@@ -451,7 +451,7 @@ Breadcrumb:
 
 This drives the status bar display:
 ```
-Release Pipeline > Code Review — 🔍 Static Analysis [1/3]
+Release Pipeline > Code Review [2/3] > 🔍 Static Analysis [1/2]
 ```
 
 ---

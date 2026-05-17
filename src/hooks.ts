@@ -5,7 +5,8 @@ import type {
   AgentEndEvent,
 } from "@earendil-works/pi-coding-agent";
 import type { WorkflowState, WorkflowDefinition, HookStateMutation } from "./types";
-import { resolveActive, isActive } from "./state";
+import { isSubworkflowRef } from "./types";
+import { resolveActive, isActive, phaseEntryName } from "./state";
 import {
   buildContextPrompt,
   DEFAULT_NOT_DONE_REMINDER,
@@ -35,36 +36,43 @@ export function updateStatus(
   state: WorkflowState | null,
   definitions: Record<string, WorkflowDefinition>,
 ): void {
-  if (!state || !state.active) {
+  if (
+    !state ||
+    !state.active ||
+    state.currentPath.length === 0 ||
+    !(state.currentPath[0].workflowKey in definitions)
+  ) {
     ctx.ui.setStatus("workflow", undefined);
     return;
   }
-  const active = resolveActive(state, definitions);
-  if (!active) {
-    ctx.ui.setStatus("workflow", undefined);
-    return;
+  const parts: string[] = [];
+
+  // First part: top-level workflow name only (no progress)
+  const topDef = definitions[state.currentPath[0].workflowKey];
+  parts.push(topDef.name);
+
+  // For each path segment, show progress at that level
+  for (let i = 0; i < state.currentPath.length; i++) {
+    const seg = state.currentPath[i];
+    const segDef = definitions[seg.workflowKey];
+    const entry = seg.phaseIndex < segDef.phases.length
+      ? segDef.phases[seg.phaseIndex]
+      : null;
+    if (!entry) {
+      ctx.ui.setStatus("workflow", undefined);
+      return;
+    }
+    const current = seg.phaseIndex + 1;
+    const total = segDef.phases.length;
+
+    if (isSubworkflowRef(entry)) {
+      parts.push(`${phaseEntryName(entry)} [${current}/${total}]`);
+    } else {
+      parts.push(`${entry.emoji} ${entry.name} [${current}/${total}]`);
+    }
   }
-  const phase = active.currentPhase;
-  let statusText: string;
-  if (state.currentPath.length === 1) {
-    // Linear workflow — keep existing format
-    const total = active.definition.phases.length;
-    const current = state.currentPath[0].phaseIndex + 1;
-    const name = active.definition.name;
-    statusText = `${name} — ${phase.emoji} ${phase.name} [${current}/${total}]`;
-  } else {
-    // Nested workflow — breadcrumb format with inner scope progress
-    const top = state.currentPath[state.currentPath.length - 1];
-    const innerDef = definitions[top.workflowKey];
-    const innerTotal = innerDef.phases.length;
-    const innerCurrent = top.phaseIndex + 1;
-    const breadcrumbNames = active.breadcrumb
-      .slice(0, -1)
-      .map((b) => b.name)
-      .join(" > ");
-    const innerName = active.breadcrumb[active.breadcrumb.length - 1]?.name ?? "";
-    statusText = `${breadcrumbNames} > ${innerName} — ${phase.emoji} ${phase.name} [${innerCurrent}/${innerTotal}]`;
-  }
+
+  const statusText = parts.join(" > ");
   ctx.ui.setStatus("workflow", statusText);
 }
 

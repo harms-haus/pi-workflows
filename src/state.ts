@@ -34,7 +34,7 @@ export function createInitialState(workflowKey: string, description: string): Wo
 // ── Helpers ──
 
 /** Get a display name from a PhaseEntry (handles both PhaseDefinition and SubworkflowReference). */
-function phaseEntryName(entry: PhaseEntry): string {
+export function phaseEntryName(entry: PhaseEntry): string {
   return isSubworkflowRef(entry) ? (entry.resolved?.name ?? entry.workflowKey) : entry.name;
 }
 

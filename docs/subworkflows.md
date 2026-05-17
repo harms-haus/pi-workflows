@@ -342,24 +342,32 @@ When a workflow is active with nested subworkflows, the status bar and status ou
 
 ### Status bar (nested)
 
-When `currentPath.length > 1`, the status bar shows:
+When `currentPath.length > 1`, the status bar shows progress at **every level** of the stack:
 
 ```
-Release Pipeline > Code Review Cycle — 🔍 Static Analysis [1/3]
+Release Pipeline > Code Review Cycle [2/3] > 🔍 Static Analysis [1/2]
 ```
 
-Format: `{parent names} > {innermost name} — {emoji} {phase name} [{current}/{total}]`
+Format: `{workflowName} > {subworkflowName} [current/total] > {emoji} {phaseName} [current/total]`
 
-- `{parent names}` — all ancestor workflow names joined by ` > `.
-- `{innermost name}` — the deepest workflow's display name.
-- Phase progress `[current/total]` is relative to the **innermost** scope.
+- The top-level workflow name appears without progress (just the name).
+- Every path segment (subworkflow or concrete phase) shows its own `[current/total]` progress within that scope.
+- Subworkflow levels have no emoji (they are not `PhaseDefinition` objects).
+- All segments are joined by ` > ` — no special separator.
+- The innermost segment always has an emoji (it is the current concrete phase).
+
+For deeply nested workflows, this extends naturally:
+
+```
+Top Workflow > Middle [1/1] > Innermost [2/2] > 🔬 Deep Phase 1 [1/2]
+```
 
 ### Status bar (non-nested)
 
-When `currentPath.length === 1`, the standard format is used:
+When `currentPath.length === 1`, the format is the same structure with a single segment:
 
 ```
-Release Pipeline — 🚀 Deploy [3/4]
+Release Pipeline > 🚀 Deploy [3/4]
 ```
 
 ### Status command output
@@ -416,4 +424,5 @@ For the complete `workflow.yaml` schema including all fields (role instructions,
 | `advancePhase(state, definitions)` | `state.ts` | Four-case stack navigation (enter/advance/done/breakout) |
 | `loopPhase(state, definitions)` | `state.ts` | Restart innermost scope from phase 0 |
 | `resolveActive(state, definitions)` | `state.ts` | Resolve state to `ActiveWorkflow` with breadcrumb |
+| `phaseEntryName(entry)` | `state.ts` | Returns display name for a `PhaseEntry` — resolves subworkflow name from `resolved` or falls back to `workflowKey` |
 | `createInitialState(key, description)` | `state.ts` | Create fresh state with single-element `currentPath` stack |

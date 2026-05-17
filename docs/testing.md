@@ -140,7 +140,7 @@ Uses shared fixture definitions imported from `helpers/fixtures.ts` (see [Test H
 
 **`handleAgentEnd` — no-UI fallback** — 1 test: uses `sendMessage` + `setTimeout` when `hasUI` is false.
 
-**`updateStatus`** — 5 tests: clears when state is null, clears when inactive, shows phase name for linear workflow, shows breadcrumb format for nested subworkflow, clears when `resolveActive` returns null.
+**`updateStatus`** — 7 tests: clears when state is null, clears when inactive, shows phase name for linear workflow, shows breadcrumb format for nested subworkflow, clears when `resolveActive` returns null, shows progress at every level for deeply nested workflow, clears status when intermediate segment has out-of-bounds phaseIndex.
 
 **`handleToolCall`** — 9 tests: allows all tools when null/inactive state, blocks blacklisted tools, blocks non-whitelisted tools, allows whitelisted tools, allows all when no tool config, always allows `workflow_step`, allows non-blacklisted tools.
 
