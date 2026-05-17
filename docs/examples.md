@@ -151,8 +151,8 @@ You must NOT edit or write files directly. Your job is to gather information.
 1. Spawn 1-4 parallel scout subagents to investigate the codebase:
 
    delegate_to_subagents: [
-     { name: "scout-vertical", prompt: "Trace the vertical slice for: {description}. Find all files, functions, and types involved.", profile: "vertical-scout" },
-     { name: "scout-horizontal", prompt: "Search for patterns, utilities, and conventions related to: {description}", profile: "horizontal-scout" }
+   { name: "scout-vertical", prompt: "Trace the vertical slice for: {description}. Find all files, functions, and types involved.", profile: "vertical-scout" },
+   { name: "scout-horizontal", prompt: "Search for patterns, utilities, and conventions related to: {description}", profile: "horizontal-scout" }
    ]
 
 2. Collect results using get_subagent_output for each sessionId.
@@ -195,7 +195,7 @@ The previous phase (**{previousPhaseName}**) produced research findings. Now cre
 1. Based on the research, delegate plan creation to the planner profile:
 
    delegate_to_subagents: [
-     { name: "planner", prompt: "Create a step-by-step implementation plan for: {description}\n\nResearch context: [insert research summary here]\n\nProduce a numbered list of specific, atomic changes.", profile: "planner" }
+   { name: "planner", prompt: "Create a step-by-step implementation plan for: {description}\n\nResearch context: [insert research summary here]\n\nProduce a numbered list of specific, atomic changes.", profile: "planner" }
    ]
 
 2. Collect and review the plan.
@@ -241,8 +241,8 @@ The plan from **{previousPhaseName}** is ready. Execute it by delegating to task
 2. Spawn 1-4 task-worker subagents:
 
    delegate_to_subagents: [
-     { name: "worker-1", prompt: "Implement step X of the plan for: {description}\n\nSpecific changes: [describe]", profile: "task-worker" },
-     { name: "worker-2", prompt: "Implement step Y of the plan for: {description}\n\nSpecific changes: [describe]", profile: "task-worker" }
+   { name: "worker-1", prompt: "Implement step X of the plan for: {description}\n\nSpecific changes: [describe]", profile: "task-worker" },
+   { name: "worker-2", prompt: "Implement step Y of the plan for: {description}\n\nSpecific changes: [describe]", profile: "task-worker" }
    ]
 
 3. Collect results and verify each worker completed its task.
@@ -282,7 +282,7 @@ The implementation is complete. Perform a final quality review.
 1. Delegate a review to the reviewer profile:
 
    delegate_to_subagents: [
-     { name: "reviewer", prompt: "Review the implementation for: {description}\n\nCheck for:\n- Correctness and edge cases\n- Code style and conventions\n- Missing tests\n- Potential regressions\n- Performance concerns", profile: "reviewer" }
+   { name: "reviewer", prompt: "Review the implementation for: {description}\n\nCheck for:\n- Correctness and edge cases\n- Code style and conventions\n- Missing tests\n- Potential regressions\n- Performance concerns", profile: "reviewer" }
    ]
 
 2. Collect the review output.
@@ -580,7 +580,7 @@ Task: {description}
 1. Delegate a review to the reviewer profile:
 
    delegate_to_subagents: [
-     { name: "reviewer", prompt: "Review the implementation for: {description}. Check correctness, style, tests, regressions.", profile: "reviewer" }
+   { name: "reviewer", prompt: "Review the implementation for: {description}. Check correctness, style, tests, regressions.", profile: "reviewer" }
    ]
 
 2. Collect the review output.
@@ -686,7 +686,7 @@ Set `loopable: false` to prevent the agent from looping back. This is useful for
 ```yaml
 name: "One-Shot Plan"
 commandName: "plan-once"
-loopable: false        # ← agent cannot call workflow_step loop
+loopable: false # ← agent cannot call workflow_step loop
 initialMessage: "Starting {workflowName} for: {description}"
 phases:
   - gather.md
@@ -763,7 +763,7 @@ All other tools are blocked.
 2. For broader coverage, spawn scout subagents:
 
    delegate_to_subagents: [
-     { name: "sec-scout", prompt: "Scan for security vulnerabilities in: {description}. Check input validation, auth patterns, injection risks.", profile: "vertical-scout" }
+   { name: "sec-scout", prompt: "Scan for security vulnerabilities in: {description}. Check input validation, auth patterns, injection risks.", profile: "vertical-scout" }
    ]
 
 3. Compile a list of findings with severity ratings (Critical / High / Medium / Low).
@@ -801,7 +801,7 @@ You may ONLY use: read, delegate_to_subagents, and workflow_step.
 2. Delegate report writing to the planner profile:
 
    delegate_to_subagents: [
-     { name: "reporter", prompt: "Create a structured security audit report for: {description}\n\nFindings: [insert findings]\n\nInclude: executive summary, detailed findings with severity, remediation steps.", profile: "planner" }
+   { name: "reporter", prompt: "Create a structured security audit report for: {description}\n\nFindings: [insert findings]\n\nInclude: executive summary, detailed findings with severity, remediation steps.", profile: "planner" }
    ]
 
 3. Present the final report.
@@ -811,12 +811,12 @@ When done, call workflow_step with action='next' to complete the workflow.
 
 ### Blacklist vs Whitelist Decision Guide
 
-| Scenario | Use | Why |
-|----------|-----|-----|
-| Phase should be read-only | `blacklist: [edit, write]` | Broad access minus the dangerous tools |
-| Phase needs minimal, specific tools | `whitelist: [read, search]` | Maximum restriction — nothing unexpected |
-| Phase has full access | Omit `tools` entirely | No restrictions applied |
-| Both `blacklist` and `whitelist` set | **Invalid** — validation error | Mutually exclusive |
+| Scenario                             | Use                            | Why                                      |
+| ------------------------------------ | ------------------------------ | ---------------------------------------- |
+| Phase should be read-only            | `blacklist: [edit, write]`     | Broad access minus the dangerous tools   |
+| Phase needs minimal, specific tools  | `whitelist: [read, search]`    | Maximum restriction — nothing unexpected |
+| Phase has full access                | Omit `tools` entirely          | No restrictions applied                  |
+| Both `blacklist` and `whitelist` set | **Invalid** — validation error | Mutually exclusive                       |
 
 See [Configuration Reference → Tool Configuration](configuration-reference.md#tool-configuration-details) for full details.
 
@@ -919,7 +919,7 @@ availableProfiles:
 3. If the codebase is large, delegate targeted investigation:
 
    delegate_to_subagents: [
-     { name: "investigator", prompt: "Trace the bug: {description}. Find the exact line where the behavior diverges from expected.", profile: "vertical-scout" }
+   { name: "investigator", prompt: "Trace the bug: {description}. Find the exact line where the behavior diverges from expected.", profile: "vertical-scout" }
    ]
 
 Blocked tools: {blockedToolsList}
@@ -950,13 +950,13 @@ The diagnosis from **{previousPhaseName}** identified the root cause. Now fix it
 1. Delegate the fix to a task-worker:
 
    delegate_to_subagents: [
-     { name: "fixer", prompt: "Apply the fix for: {description}\n\nRoot cause: [insert diagnosis]\n\nFix approach: [describe the change]", profile: "task-worker" }
+   { name: "fixer", prompt: "Apply the fix for: {description}\n\nRoot cause: [insert diagnosis]\n\nFix approach: [describe the change]", profile: "task-worker" }
    ]
 
 2. After the fix is applied, delegate a quick review:
 
    delegate_to_subagents: [
-     { name: "verifier", prompt: "Verify the fix for: {description}. Check that the original issue is resolved and no regressions introduced.", profile: "reviewer" }
+   { name: "verifier", prompt: "Verify the fix for: {description}. Check that the original issue is resolved and no regressions introduced.", profile: "reviewer" }
    ]
 
 When the fix is verified, call workflow_step with action='next' to complete the workflow.
@@ -994,10 +994,10 @@ pi-workflows loads definitions from two tiers: **global** (shared across all pro
 
 ### Loading Order
 
-| Priority | Location | Loaded From |
-|----------|----------|-------------|
-| 1 (highest) | `.pi/workflows/` | Relative to the project root (`cwd`) |
-| 2 | `~/.pi/agent/workflows/` | Global home directory, or `$PI_CODING_AGENT_DIR/workflows/` |
+| Priority    | Location                 | Loaded From                                                 |
+| ----------- | ------------------------ | ----------------------------------------------------------- |
+| 1 (highest) | `.pi/workflows/`         | Relative to the project root (`cwd`)                        |
+| 2           | `~/.pi/agent/workflows/` | Global home directory, or `$PI_CODING_AGENT_DIR/workflows/` |
 
 When both tiers define a workflow with the same directory name, the **project** version wins. The merge uses a simple object spread: `{ ...globalDefs, ...projectDefs }`.
 
@@ -1189,11 +1189,11 @@ Call workflow_step with action='next' to complete the hotfix.
 
 ### Result: What Each Project Sees
 
-| Workflow | `~/projects/webapp` | `~/projects/api` | Any other project |
-|----------|:---:|:---:|:---:|
-| `rpir` | Webapp-RPIR (5 phases) | Global RPIR (4 phases) | Global RPIR (4 phases) |
-| `code-review` | Global code-review | Global code-review | Global code-review |
-| `hotfix` | Webapp Hotfix Pipeline | API Hotfix Pipeline | *(not available)* |
+| Workflow      |  `~/projects/webapp`   |    `~/projects/api`    |   Any other project    |
+| ------------- | :--------------------: | :--------------------: | :--------------------: |
+| `rpir`        | Webapp-RPIR (5 phases) | Global RPIR (4 phases) | Global RPIR (4 phases) |
+| `code-review` |   Global code-review   |   Global code-review   |   Global code-review   |
+| `hotfix`      | Webapp Hotfix Pipeline |  API Hotfix Pipeline   |   _(not available)_    |
 
 ### Environment Variable Override
 
@@ -1210,33 +1210,33 @@ export PI_CODING_AGENT_DIR="/opt/pi-agent"
 
 ### `workflow_step` Actions
 
-| Action | Description | When to Use |
-|--------|-------------|-------------|
-| `next` | Advance to the next phase (or DONE if last) | Phase work is complete |
-| `loop` | Restart the current scope from phase 0 | Review found issues; retry the cycle |
-| `status` | Show current workflow state, phase instructions, profiles | Need to check where you are |
-| `cancel` | Cancel the workflow (requires confirmation) | Workflow is wrong; abort it |
+| Action   | Description                                               | When to Use                          |
+| -------- | --------------------------------------------------------- | ------------------------------------ |
+| `next`   | Advance to the next phase (or DONE if last)               | Phase work is complete               |
+| `loop`   | Restart the current scope from phase 0                    | Review found issues; retry the cycle |
+| `status` | Show current workflow state, phase instructions, profiles | Need to check where you are          |
+| `cancel` | Cancel the workflow (requires confirmation)               | Workflow is wrong; abort it          |
 
 ### Phase Frontmatter Fields
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `id` | **Yes** | Unique identifier within the workflow |
-| `name` | **Yes** | Display name |
-| `emoji` | **Yes** | Single emoji for UI |
-| `tools.blacklist` | No | Tools to block |
-| `tools.whitelist` | No | Only these tools allowed |
-| `availableProfiles` | No | Subagent profiles for this phase |
+| Field               | Required | Description                           |
+| ------------------- | -------- | ------------------------------------- |
+| `id`                | **Yes**  | Unique identifier within the workflow |
+| `name`              | **Yes**  | Display name                          |
+| `emoji`             | **Yes**  | Single emoji for UI                   |
+| `tools.blacklist`   | No       | Tools to block                        |
+| `tools.whitelist`   | No       | Only these tools allowed              |
+| `availableProfiles` | No       | Subagent profiles for this phase      |
 
 ### workflow.yaml Key Fields
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `name` | **Yes** | Display name |
-| `commandName` | Yes (if `show: "user"`) | Slash command name |
-| `initialMessage` | Yes (if `show: "user"`) | Message sent on start |
-| `phases` | **Yes** | Array of `.md` filenames or `{ subworkflow: key }` |
-| `show` | No | `"user"` (default) or `"workflows"` (subworkflow-only) |
-| `loopable` | No | `true` (default) or `false` |
+| Field            | Required                | Description                                            |
+| ---------------- | ----------------------- | ------------------------------------------------------ |
+| `name`           | **Yes**                 | Display name                                           |
+| `commandName`    | Yes (if `show: "user"`) | Slash command name                                     |
+| `initialMessage` | Yes (if `show: "user"`) | Message sent on start                                  |
+| `phases`         | **Yes**                 | Array of `.md` filenames or `{ subworkflow: key }`     |
+| `show`           | No                      | `"user"` (default) or `"workflows"` (subworkflow-only) |
+| `loopable`       | No                      | `true` (default) or `false`                            |
 
 For complete field documentation, see [Configuration Reference](configuration-reference.md). For all available template variables, see [Template Variables](template-variables.md).

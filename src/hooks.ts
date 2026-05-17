@@ -55,9 +55,7 @@ export function updateStatus(
   for (let i = 0; i < state.currentPath.length; i++) {
     const seg = state.currentPath[i];
     const segDef = definitions[seg.workflowKey];
-    const entry = seg.phaseIndex < segDef.phases.length
-      ? segDef.phases[seg.phaseIndex]
-      : null;
+    const entry = seg.phaseIndex < segDef.phases.length ? segDef.phases[seg.phaseIndex] : null;
     if (!entry) {
       ctx.ui.setStatus("workflow", undefined);
       return;

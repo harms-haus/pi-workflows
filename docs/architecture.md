@@ -21,20 +21,20 @@ The extension has no HTTP server, no database, and no background processes. It i
 
 ## Module Map
 
-| File | Responsibility | Key Exports | Internal Dependencies |
-|---|---|---|---|
-| `index.ts` | Entry point; wires all event subscriptions and registrations | `default` (extension function) | All other modules |
-| `types.ts` | Type definitions and discriminated-union guards | `PhaseToolConfig`, `PathSegment`, `PhaseDefinition`, `SubworkflowReference`, `PhaseEntry`, `WorkflowDefinition`, `WorkflowState`, `ActiveWorkflow`, `HookStateMutation`, `GetState`, `SetState`, `GetDefinitions`, `ReloadDefinitions`, `isSubworkflowRef()`, `isPhaseDefinition()` | — |
-| `config/index.ts` | Barrel module — re-exports the public API from all config submodules | (re-exports only) | `config/templates.ts`, `config/validation.ts`, `config/loading.ts` |
-| `config/templates.ts` | Template variable resolution and phase tool-accessor helpers | `resolveTemplate()`, `getBlockedTools()`, `getWhitelist()` | `types.ts` |
-| `config/validation.ts` | Workflow definition validation and subworkflow cycle detection (iterative DFS) | `validateWorkflowDefinition()`, `detectCycles()`, `VALID_COMMAND_NAME_RE` | `types.ts` |
-| `config/loading.ts` | Workflow discovery, YAML/Markdown loading, subworkflow resolution, command-name lookup | `findWorkflowByCommandName()`, `loadWorkflowFromDir()`, `loadWorkflowsFromDir()`, `loadWorkflows()` | `types.ts`, `config/validation.ts` |
-| `state.ts` | State creation, phase advancement, subworkflow navigation, persistence, reconstruction | `createInitialState()`, `advancePhase()`, `loopPhase()`, `resolveActive()`, `persistState()`, `reconstructState()`, `isActive()`, `autoEnterSubworkflowRefs()`, `resolveFirstPhase()`, `phaseEntryName()` | `types.ts` |
-| `tool.ts` | Registers the `workflow_step` tool (status, next, cancel, loop actions) | `registerWorkflowTool()` | `types.ts`, `state.ts`, `config/` |
-| `command.ts` | Registers `/workflow` and `/cancel-workflow` slash commands | `registerWorkflowCommand()`, `registerCancelWorkflowCommand()` | `types.ts`, `state.ts`, `config/` |
-| `hooks.ts` | Lifecycle hook handlers — exports 4 functions used across 6 event registrations (`session_start`/`session_tree` are handled inline in `index.ts`) | `updateStatus()`, `handleToolCall()`, `handleBeforeAgentStart()`, `handleAgentEnd()` | `types.ts`, `state.ts`, `config/`, `prompts.ts` |
-| `prompts.ts` | Context prompt construction and default message templates | `buildContextPrompt()`, `DEFAULT_NOT_DONE_REMINDER`, `DEFAULT_COMPLETION_MESSAGE`, `DEFAULT_CANCELLED_MESSAGE` | `types.ts`, `config/` |
-| `renderers.ts` | TUI message renderers for workflow message types | `registerRenderers()` | — |
+| File                   | Responsibility                                                                                                                                    | Key Exports                                                                                                                                                                                                                                                                         | Internal Dependencies                                              |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `index.ts`             | Entry point; wires all event subscriptions and registrations                                                                                      | `default` (extension function)                                                                                                                                                                                                                                                      | All other modules                                                  |
+| `types.ts`             | Type definitions and discriminated-union guards                                                                                                   | `PhaseToolConfig`, `PathSegment`, `PhaseDefinition`, `SubworkflowReference`, `PhaseEntry`, `WorkflowDefinition`, `WorkflowState`, `ActiveWorkflow`, `HookStateMutation`, `GetState`, `SetState`, `GetDefinitions`, `ReloadDefinitions`, `isSubworkflowRef()`, `isPhaseDefinition()` | —                                                                  |
+| `config/index.ts`      | Barrel module — re-exports the public API from all config submodules                                                                              | (re-exports only)                                                                                                                                                                                                                                                                   | `config/templates.ts`, `config/validation.ts`, `config/loading.ts` |
+| `config/templates.ts`  | Template variable resolution and phase tool-accessor helpers                                                                                      | `resolveTemplate()`, `getBlockedTools()`, `getWhitelist()`                                                                                                                                                                                                                          | `types.ts`                                                         |
+| `config/validation.ts` | Workflow definition validation and subworkflow cycle detection (iterative DFS)                                                                    | `validateWorkflowDefinition()`, `detectCycles()`, `VALID_COMMAND_NAME_RE`                                                                                                                                                                                                           | `types.ts`                                                         |
+| `config/loading.ts`    | Workflow discovery, YAML/Markdown loading, subworkflow resolution, command-name lookup                                                            | `findWorkflowByCommandName()`, `loadWorkflowFromDir()`, `loadWorkflowsFromDir()`, `loadWorkflows()`                                                                                                                                                                                 | `types.ts`, `config/validation.ts`                                 |
+| `state.ts`             | State creation, phase advancement, subworkflow navigation, persistence, reconstruction                                                            | `createInitialState()`, `advancePhase()`, `loopPhase()`, `resolveActive()`, `persistState()`, `reconstructState()`, `isActive()`, `autoEnterSubworkflowRefs()`, `resolveFirstPhase()`, `phaseEntryName()`                                                                           | `types.ts`                                                         |
+| `tool.ts`              | Registers the `workflow_step` tool (status, next, cancel, loop actions)                                                                           | `registerWorkflowTool()`                                                                                                                                                                                                                                                            | `types.ts`, `state.ts`, `config/`                                  |
+| `command.ts`           | Registers `/workflow` and `/cancel-workflow` slash commands                                                                                       | `registerWorkflowCommand()`, `registerCancelWorkflowCommand()`                                                                                                                                                                                                                      | `types.ts`, `state.ts`, `config/`                                  |
+| `hooks.ts`             | Lifecycle hook handlers — exports 4 functions used across 6 event registrations (`session_start`/`session_tree` are handled inline in `index.ts`) | `updateStatus()`, `handleToolCall()`, `handleBeforeAgentStart()`, `handleAgentEnd()`                                                                                                                                                                                                | `types.ts`, `state.ts`, `config/`, `prompts.ts`                    |
+| `prompts.ts`           | Context prompt construction and default message templates                                                                                         | `buildContextPrompt()`, `DEFAULT_NOT_DONE_REMINDER`, `DEFAULT_COMPLETION_MESSAGE`, `DEFAULT_CANCELLED_MESSAGE`                                                                                                                                                                      | `types.ts`, `config/`                                              |
+| `renderers.ts`         | TUI message renderers for workflow message types                                                                                                  | `registerRenderers()`                                                                                                                                                                                                                                                               | —                                                                  |
 
 ### Dependency Graph
 
@@ -168,13 +168,13 @@ Tools and commands are registered at initialization time and receive the accesso
 
 ### Where state is mutated
 
-| Site | How | Effect |
-|---|---|---|
-| `session_start` / `session_tree` handlers | Direct assignment to `state` and `definitions` | Loads fresh definitions; reconstructs persisted state |
-| `agent_end` handler | Reads `HookStateMutation` result; assigns `state = null` or `state = mutation.state` | Handles completion unload or state update |
-| `workflow_step` tool (cancel, next→DONE) | Calls `setState(newState)` | Immediate state swap from within tool execution |
-| `/workflow` command | Calls `setState(newState)` | Starts a new workflow, replacing any prior active state |
-| `/cancel-workflow` command | Calls `setState(null)` | Unloads workflow immediately |
+| Site                                      | How                                                                                  | Effect                                                  |
+| ----------------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------- |
+| `session_start` / `session_tree` handlers | Direct assignment to `state` and `definitions`                                       | Loads fresh definitions; reconstructs persisted state   |
+| `agent_end` handler                       | Reads `HookStateMutation` result; assigns `state = null` or `state = mutation.state` | Handles completion unload or state update               |
+| `workflow_step` tool (cancel, next→DONE)  | Calls `setState(newState)`                                                           | Immediate state swap from within tool execution         |
+| `/workflow` command                       | Calls `setState(newState)`                                                           | Starts a new workflow, replacing any prior active state |
+| `/cancel-workflow` command                | Calls `setState(null)`                                                               | Unloads workflow immediately                            |
 
 ---
 
@@ -182,23 +182,23 @@ Tools and commands are registered at initialization time and receive the accesso
 
 ### Agent Lifecycle Events
 
-| Event | Handler | Purpose | Returns |
-|---|---|---|---|
-| `session_start` | Inline in `index.ts` | Load definitions from disk; reconstruct state from session branch; update status bar | `void` |
-| `session_tree` | Inline in `index.ts` | Same as `session_start` — fires when the user switches session branches. Captures `ctx.cwd` synchronously before any async gap. | `void` |
-| `tool_call` | `handleToolCall()` in `hooks.ts` | Block tool calls that violate the active phase's blacklist/whitelist. `workflow_step` is always exempt. | `{ block: true; reason: string }` or `void` |
-| `before_agent_start` | `handleBeforeAgentStart()` in `hooks.ts` | Inject a hidden `workflow:context` message containing the full context prompt for the current phase. | `{ message: {...} }` or `void` |
-| `agent_end` | `handleAgentEnd()` in `hooks.ts` | Detect completion (send notification, unload state) or mid-workflow stop (send not-done reminder, auto-continue after 3s). Skips auto-continue if the agent was aborted by the user. | `HookStateMutation` (returned inline, not via event return) |
-| `turn_end` | `updateStatus()` in `hooks.ts` | Refresh the status bar with the current phase name, emoji, and progress indicator. | `void` |
+| Event                | Handler                                  | Purpose                                                                                                                                                                              | Returns                                                     |
+| -------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------- |
+| `session_start`      | Inline in `index.ts`                     | Load definitions from disk; reconstruct state from session branch; update status bar                                                                                                 | `void`                                                      |
+| `session_tree`       | Inline in `index.ts`                     | Same as `session_start` — fires when the user switches session branches. Captures `ctx.cwd` synchronously before any async gap.                                                      | `void`                                                      |
+| `tool_call`          | `handleToolCall()` in `hooks.ts`         | Block tool calls that violate the active phase's blacklist/whitelist. `workflow_step` is always exempt.                                                                              | `{ block: true; reason: string }` or `void`                 |
+| `before_agent_start` | `handleBeforeAgentStart()` in `hooks.ts` | Inject a hidden `workflow:context` message containing the full context prompt for the current phase.                                                                                 | `{ message: {...} }` or `void`                              |
+| `agent_end`          | `handleAgentEnd()` in `hooks.ts`         | Detect completion (send notification, unload state) or mid-workflow stop (send not-done reminder, auto-continue after 3s). Skips auto-continue if the agent was aborted by the user. | `HookStateMutation` (returned inline, not via event return) |
+| `turn_end`           | `updateStatus()` in `hooks.ts`           | Refresh the status bar with the current phase name, emoji, and progress indicator.                                                                                                   | `void`                                                      |
 
 ### Registrations (non-event)
 
-| Registration | Module | Description |
-|---|---|---|
-| `registerWorkflowTool()` | `tool.ts` | Registers the `workflow_step` tool with actions: `next`, `status`, `cancel`, `loop`. Includes TUI renderers for call/result. |
-| `registerWorkflowCommand()` | `command.ts` | Registers the `/workflow` slash command. Supports argument completions for available workflow names. |
-| `registerCancelWorkflowCommand()` | `command.ts` | Registers the `/cancel-workflow` slash command for immediate cancellation. |
-| `registerRenderers()` | `renderers.ts` | Registers TUI renderers for three custom message types: `workflow:context`, `workflow:complete`, `workflow:countdown`. |
+| Registration                      | Module         | Description                                                                                                                  |
+| --------------------------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `registerWorkflowTool()`          | `tool.ts`      | Registers the `workflow_step` tool with actions: `next`, `status`, `cancel`, `loop`. Includes TUI renderers for call/result. |
+| `registerWorkflowCommand()`       | `command.ts`   | Registers the `/workflow` slash command. Supports argument completions for available workflow names.                         |
+| `registerCancelWorkflowCommand()` | `command.ts`   | Registers the `/cancel-workflow` slash command for immediate cancellation.                                                   |
+| `registerRenderers()`             | `renderers.ts` | Registers TUI renderers for three custom message types: `workflow:context`, `workflow:complete`, `workflow:countdown`.       |
 
 ### Event Handler Signatures
 
@@ -229,8 +229,8 @@ Every handler that calls `pi.*` methods or accesses `ctx` after an `await` wraps
 try {
   // ... handler logic using ctx or pi ...
 } catch (e) {
-  if (isStaleError(e)) return;   // silently discard
-  throw e;                        // re-throw real errors
+  if (isStaleError(e)) return; // silently discard
+  throw e; // re-throw real errors
 }
 ```
 
@@ -244,12 +244,12 @@ function isStaleError(e: unknown): boolean {
 
 ### Handlers with stale guards
 
-| Handler | Why it needs the guard |
-|---|---|
+| Handler         | Why it needs the guard                                                                                                                                |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `session_start` | Calls `loadWorkflows(ctx.cwd)` and `updateStatus(ctx, ...)` — the `ctx` is invalid if the session was replaced during the async `loadWorkflows` call. |
-| `session_tree` | Same as `session_start`. Additionally captures `ctx.cwd` synchronously before the async gap to prevent accessing a stale context. |
-| `agent_end` | Calls `pi.sendMessage()`, `persistState(pi, ...)`, and `ctx.ui.setStatus()` — all of which can throw on a replaced session. |
-| `turn_end` | Calls `updateStatus(ctx, ...)` which uses `ctx.ui.setStatus()`. |
+| `session_tree`  | Same as `session_start`. Additionally captures `ctx.cwd` synchronously before the async gap to prevent accessing a stale context.                     |
+| `agent_end`     | Calls `pi.sendMessage()`, `persistState(pi, ...)`, and `ctx.ui.setStatus()` — all of which can throw on a replaced session.                           |
+| `turn_end`      | Calls `updateStatus(ctx, ...)` which uses `ctx.ui.setStatus()`.                                                                                       |
 
 Handlers that are **not** guarded (`tool_call`, `before_agent_start`) operate on the closure-captured `state` and `definitions` without calling async `pi.*` or `ctx.*` methods, so they cannot encounter stale-context errors.
 
@@ -261,21 +261,21 @@ Handlers that are **not** guarded (`tool_call`, `before_agent_start`) operate on
 
 Only `@earendil-works/pi-coding-agent` is a **direct dependency** listed in `package.json`. The remaining packages are **transitive dependencies** — they are imported directly by pi-workflows source code but resolved through the `@earendil-works/pi-coding-agent` dependency chain.
 
-| Package | Type | Purpose | Used In |
-|---|---|---|---|
-| `@earendil-works/pi-coding-agent` | Direct | Extension API (`ExtensionAPI`, `ExtensionContext`, event types, `parseFrontmatter`), tool registration, command registration, message rendering | All modules except `types.ts` |
-| `@earendil-works/pi-tui` | Transitive | Terminal UI rendering — `Text` component for custom tool call/result and message renderers | `tool.ts`, `renderers.ts` |
-| `@earendil-works/pi-ai` | Transitive | `StringEnum` for TypeBox schema generation of the `action` parameter in `workflow_step` | `tool.ts` |
-| `typebox` | Transitive | Runtime type schema construction (`Type.Object`, `Type.String`, `Type.Optional`) for tool parameter validation | `tool.ts` |
-| `yaml` | Transitive | YAML parsing for `workflow.yaml` files during definition loading | `config/loading.ts` |
+| Package                           | Type       | Purpose                                                                                                                                         | Used In                       |
+| --------------------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
+| `@earendil-works/pi-coding-agent` | Direct     | Extension API (`ExtensionAPI`, `ExtensionContext`, event types, `parseFrontmatter`), tool registration, command registration, message rendering | All modules except `types.ts` |
+| `@earendil-works/pi-tui`          | Transitive | Terminal UI rendering — `Text` component for custom tool call/result and message renderers                                                      | `tool.ts`, `renderers.ts`     |
+| `@earendil-works/pi-ai`           | Transitive | `StringEnum` for TypeBox schema generation of the `action` parameter in `workflow_step`                                                         | `tool.ts`                     |
+| `typebox`                         | Transitive | Runtime type schema construction (`Type.Object`, `Type.String`, `Type.Optional`) for tool parameter validation                                  | `tool.ts`                     |
+| `yaml`                            | Transitive | YAML parsing for `workflow.yaml` files during definition loading                                                                                | `config/loading.ts`           |
 
 ### Standard Library Usage
 
-| Module | Purpose |
-|---|---|
-| `node:fs` | `readdirSync`, `readFileSync`, `existsSync`, `realpathSync` — synchronous file I/O for workflow discovery and phase loading |
-| `node:path` | `join`, `resolve`, `sep` — path construction and path-safety checks |
-| `node:os` | `homedir` — resolving the global `~/.pi/agent/workflows/` directory |
+| Module      | Purpose                                                                                                                     |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `node:fs`   | `readdirSync`, `readFileSync`, `existsSync`, `realpathSync` — synchronous file I/O for workflow discovery and phase loading |
+| `node:path` | `join`, `resolve`, `sep` — path construction and path-safety checks                                                         |
+| `node:os`   | `homedir` — resolving the global `~/.pi/agent/workflows/` directory                                                         |
 
 ### Key convention: synchronous file I/O
 

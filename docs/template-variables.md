@@ -6,11 +6,11 @@ Pi-workflows uses a `{varName}` template syntax throughout its configurable stri
 
 **Resolution rules:**
 
-| Rule | Behavior |
-|---|---|
-| Matching `{varName}` | Replaced with the corresponding value from the variables map |
-| Unknown `{varName}` | **Left as-is** — the literal text `{varName}` remains in the output |
-| No curly braces | Plain text passes through unchanged |
+| Rule                 | Behavior                                                            |
+| -------------------- | ------------------------------------------------------------------- |
+| Matching `{varName}` | Replaced with the corresponding value from the variables map        |
+| Unknown `{varName}`  | **Left as-is** — the literal text `{varName}` remains in the output |
+| No curly braces      | Plain text passes through unchanged                                 |
 
 ```typescript
 // Simplified from src/config/templates.ts
@@ -29,29 +29,29 @@ function resolveTemplate(template: string, vars: Record<string, string>): string
 
 Variables are resolved in different contexts with different sets available. The table below summarizes which variables exist in each context; detailed tables follow.
 
-| Variable | `initialMessage` | Phase Instructions / Context Prompt | `blockReasonTemplate` | `completionMessage` | Cancel case | `notDoneReminder` |
-|---|:---:|:---:|:---:|:---:|:---:|:---:|
-| `{workflowName}` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `{workflowKey}` | ✅ | ✅ | — | — | — | ✅ |
-| `{description}` | ✅ | ✅ | — | — | — | — |
-| `{taskDescription}` | — | — | — | ✅ | ✅ | ✅ |
-| `{taskId}` | — | ✅ | — | ✅ | ✅ | ✅ |
-| `{phaseId}` | — | ✅ | — | — | — | — |
-| `{phaseName}` | — | ✅ | ✅ | — | — | ✅ |
-| `{previousPhaseName}` | — | ✅ | — | — | — | — |
-| `{nextPhaseName}` | — | ✅ | — | — | — | — |
-| `{blockedToolsList}` | — | ✅ | — | — | — | — |
-| `{toolName}` | — | ✅ | ✅ | — | — | — |
-| `{breadcrumbPath}` | — | ✅ | — | — | — | — |
-| `{globalStepCount}` | — | ✅ | — | — | — | — |
-| `{phaseEmoji}` | — | — | — | — | — | ✅ |
-| `{phaseInstructions}` | — | — | — | — | — | ✅ |
-| `{phaseCount}` | — | — | — | ✅ | ✅ | — |
-| `{allowedTools}` | — | — | ✅ | — | — | — |
-| `{firstPhaseId}` | ✅ | — | — | — | — | — |
-| `{firstPhaseName}` | ✅ | — | — | — | — | — |
-| `{firstPhaseEmoji}` | ✅ | — | — | — | — | — |
-| `{firstPhaseProfiles}` | ✅ | — | — | — | — | — |
+| Variable               | `initialMessage` | Phase Instructions / Context Prompt | `blockReasonTemplate` | `completionMessage` | Cancel case | `notDoneReminder` |
+| ---------------------- | :--------------: | :---------------------------------: | :-------------------: | :-----------------: | :---------: | :---------------: |
+| `{workflowName}`       |        ✅        |                 ✅                  |          ✅           |         ✅          |     ✅      |        ✅         |
+| `{workflowKey}`        |        ✅        |                 ✅                  |           —           |          —          |      —      |        ✅         |
+| `{description}`        |        ✅        |                 ✅                  |           —           |          —          |      —      |         —         |
+| `{taskDescription}`    |        —         |                  —                  |           —           |         ✅          |     ✅      |        ✅         |
+| `{taskId}`             |        —         |                 ✅                  |           —           |         ✅          |     ✅      |        ✅         |
+| `{phaseId}`            |        —         |                 ✅                  |           —           |          —          |      —      |         —         |
+| `{phaseName}`          |        —         |                 ✅                  |          ✅           |          —          |      —      |        ✅         |
+| `{previousPhaseName}`  |        —         |                 ✅                  |           —           |          —          |      —      |         —         |
+| `{nextPhaseName}`      |        —         |                 ✅                  |           —           |          —          |      —      |         —         |
+| `{blockedToolsList}`   |        —         |                 ✅                  |           —           |          —          |      —      |         —         |
+| `{toolName}`           |        —         |                 ✅                  |          ✅           |          —          |      —      |         —         |
+| `{breadcrumbPath}`     |        —         |                 ✅                  |           —           |          —          |      —      |         —         |
+| `{globalStepCount}`    |        —         |                 ✅                  |           —           |          —          |      —      |         —         |
+| `{phaseEmoji}`         |        —         |                  —                  |           —           |          —          |      —      |        ✅         |
+| `{phaseInstructions}`  |        —         |                  —                  |           —           |          —          |      —      |        ✅         |
+| `{phaseCount}`         |        —         |                  —                  |           —           |         ✅          |     ✅      |         —         |
+| `{allowedTools}`       |        —         |                  —                  |          ✅           |          —          |      —      |         —         |
+| `{firstPhaseId}`       |        ✅        |                  —                  |           —           |          —          |      —      |         —         |
+| `{firstPhaseName}`     |        ✅        |                  —                  |           —           |          —          |      —      |         —         |
+| `{firstPhaseEmoji}`    |        ✅        |                  —                  |           —           |          —          |      —      |         —         |
+| `{firstPhaseProfiles}` |        ✅        |                  —                  |           —           |          —          |      —      |         —         |
 
 > **Note:** There is no separate `cancelledMessage` field on `WorkflowDefinition`. The cancellation path reuses `completionMessage` with `DEFAULT_CANCELLED_MESSAGE` as fallback. See [Cancelled Message](#cancelled-message) below.
 
@@ -61,15 +61,15 @@ Variables are resolved in different contexts with different sets available. The 
 
 Resolved once when the workflow starts (in `src/command.ts`). The `initialMessage` field is defined in `workflow.yaml`.
 
-| Variable | Source | Example Value |
-|---|---|---|
-| `{workflowName}` | `definition.name` | `Refine, Plan, Implement, Review` |
-| `{workflowKey}` | Definition map key | `rpir` |
-| `{description}` | User's description argument (trimmed) | `Add login page` |
-| `{firstPhaseId}` | First concrete phase's `id` | `refine` |
-| `{firstPhaseName}` | First concrete phase's `name` | `Refine Requirements` |
-| `{firstPhaseEmoji}` | First concrete phase's `emoji` | `🔍` |
-| `{firstPhaseProfiles}` | First phase's `availableProfiles` joined by `, `, or `(none)` | `planner, researcher` |
+| Variable               | Source                                                        | Example Value                     |
+| ---------------------- | ------------------------------------------------------------- | --------------------------------- |
+| `{workflowName}`       | `definition.name`                                             | `Refine, Plan, Implement, Review` |
+| `{workflowKey}`        | Definition map key                                            | `rpir`                            |
+| `{description}`        | User's description argument (trimmed)                         | `Add login page`                  |
+| `{firstPhaseId}`       | First concrete phase's `id`                                   | `refine`                          |
+| `{firstPhaseName}`     | First concrete phase's `name`                                 | `Refine Requirements`             |
+| `{firstPhaseEmoji}`    | First concrete phase's `emoji`                                | `🔍`                              |
+| `{firstPhaseProfiles}` | First phase's `availableProfiles` joined by `, `, or `(none)` | `planner, researcher`             |
 
 **Example template:**
 
@@ -101,20 +101,20 @@ Available inside every phase's `instructions` body (the markdown content in each
 
 Resolved per-turn in `buildContextPrompt()` (`src/prompts.ts`).
 
-| Variable | Source | Example Value |
-|---|---|---|
-| `{workflowName}` | Top-level workflow `name` | `Refine, Plan, Implement, Review` |
-| `{workflowKey}` | `state.workflowKey` | `rpir` |
-| `{description}` | User's original description | `Add login page` |
-| `{taskId}` | Generated task ID | `wf-1747234567890-a3f2k1` |
-| `{phaseId}` | Current phase `id` | `implement` |
-| `{phaseName}` | Current phase `name` | `Implementation` |
-| `{previousPhaseName}` | Previous phase's `name`, or `(start)` if first | `Planning` |
-| `{nextPhaseName}` | Next phase's `name`, or `DONE` if last | `Review` |
-| `{blockedToolsList}` | Blocked tools joined by `, `, or `(none)` | `edit, write` |
-| `{toolName}` | Always `"workflow_step"` | `workflow_step` |
-| `{breadcrumbPath}` | Breadcrumb trail joined by ` > ` | `RPIR > Implementation` |
-| `{globalStepCount}` | Monotonically increasing step counter | `3` |
+| Variable              | Source                                         | Example Value                     |
+| --------------------- | ---------------------------------------------- | --------------------------------- |
+| `{workflowName}`      | Top-level workflow `name`                      | `Refine, Plan, Implement, Review` |
+| `{workflowKey}`       | `state.workflowKey`                            | `rpir`                            |
+| `{description}`       | User's original description                    | `Add login page`                  |
+| `{taskId}`            | Generated task ID                              | `wf-1747234567890-a3f2k1`         |
+| `{phaseId}`           | Current phase `id`                             | `implement`                       |
+| `{phaseName}`         | Current phase `name`                           | `Implementation`                  |
+| `{previousPhaseName}` | Previous phase's `name`, or `(start)` if first | `Planning`                        |
+| `{nextPhaseName}`     | Next phase's `name`, or `DONE` if last         | `Review`                          |
+| `{blockedToolsList}`  | Blocked tools joined by `, `, or `(none)`      | `edit, write`                     |
+| `{toolName}`          | Always `"workflow_step"`                       | `workflow_step`                   |
+| `{breadcrumbPath}`    | Breadcrumb trail joined by `>`                 | `RPIR > Implementation`           |
+| `{globalStepCount}`   | Monotonically increasing step counter          | `3`                               |
 
 **Example phase instructions:**
 
@@ -156,11 +156,11 @@ The **context prompt** is injected as a hidden message before every agent turn v
 
 The following configurable templates all receive the full phase instructions variable set:
 
-| Template Field | Purpose |
-|---|---|
-| `roleInstruction` | Prepended to every context injection — defines the agent's role |
-| `advanceReminder` | Appended to every context injection — reminds agent to advance |
-| Phase `instructions` | The main body of what the agent should do this phase |
+| Template Field       | Purpose                                                         |
+| -------------------- | --------------------------------------------------------------- |
+| `roleInstruction`    | Prepended to every context injection — defines the agent's role |
+| `advanceReminder`    | Appended to every context injection — reminds agent to advance  |
+| Phase `instructions` | The main body of what the agent should do this phase            |
 
 All three are resolved with the identical variable map documented in [Phase Instructions Variables](#phase-instructions-variables) above.
 
@@ -170,12 +170,12 @@ All three are resolved with the identical variable map documented in [Phase Inst
 
 Resolved when a tool call is blocked during a phase (in `src/hooks.ts`, `handleToolCall()`). Used by the `blockReasonTemplate` field.
 
-| Variable | Source | Example Value |
-|---|---|---|
-| `{workflowName}` | `definition.name` | `Refine, Plan, Implement, Review` |
-| `{phaseName}` | Current phase `name` | `Refine Requirements` |
-| `{toolName}` | The tool name that was blocked | `edit` |
-| `{allowedTools}` | Description of what *is* allowed | `all except: edit, write` or `read, search` |
+| Variable         | Source                           | Example Value                               |
+| ---------------- | -------------------------------- | ------------------------------------------- |
+| `{workflowName}` | `definition.name`                | `Refine, Plan, Implement, Review`           |
+| `{phaseName}`    | Current phase `name`             | `Refine Requirements`                       |
+| `{toolName}`     | The tool name that was blocked   | `edit`                                      |
+| `{allowedTools}` | Description of what _is_ allowed | `all except: edit, write` or `read, search` |
 
 The `{allowedTools}` value depends on the tool restriction mode:
 
@@ -187,12 +187,14 @@ The `{allowedTools}` value depends on the tool restriction mode:
 **Example:**
 
 Template:
+
 ```
 [workflow] "{toolName}" is blocked during {phaseName}.
 Allowed: {allowedTools}. Use workflow_step when done.
 ```
 
 Resolved (blacklist):
+
 ```
 [workflow] "edit" is blocked during Refine Requirements.
 Allowed: all except: edit, write. Use workflow_step when done.
@@ -206,12 +208,12 @@ Allowed: all except: edit, write. Use workflow_step when done.
 
 Resolved when the workflow reaches the DONE state.
 
-| Variable | Source | Example Value |
-|---|---|---|
-| `{workflowName}` | `definition.name` | `Refine, Plan, Implement, Review` |
-| `{taskDescription}` | User's original description | `Add login page` |
-| `{taskId}` | Generated task ID | `wf-1747234567890-a3f2k1` |
-| `{phaseCount}` | Total phases in the top-level workflow | `4` |
+| Variable            | Source                                 | Example Value                     |
+| ------------------- | -------------------------------------- | --------------------------------- |
+| `{workflowName}`    | `definition.name`                      | `Refine, Plan, Implement, Review` |
+| `{taskDescription}` | User's original description            | `Add login page`                  |
+| `{taskId}`          | Generated task ID                      | `wf-1747234567890-a3f2k1`         |
+| `{phaseCount}`      | Total phases in the top-level workflow | `4`                               |
 
 ### Cancelled Message
 
@@ -220,12 +222,14 @@ There is **no separate** `cancelledMessage` field on `WorkflowDefinition`. The c
 **Two cancellation paths exist:**
 
 1. **`/cancel-workflow` command** (`src/command.ts`) — Sends a **hardcoded message** with no template resolution at all:
+
    ```
    ❌ **Workflow Cancelled**
 
    **Task:** {taskDescription}
    **Task ID:** {taskId}
    ```
+
    This command also unloads the workflow state immediately, so the `agent_end` hook sees null state and does nothing further.
 
 2. **`agent_end` hook** (`src/hooks.ts`) — When `state.cancelled === true` and `state.completionNotified === false`, resolves `definition.completionMessage` if set, otherwise falls back to `DEFAULT_CANCELLED_MESSAGE` (not `DEFAULT_COMPLETION_MESSAGE`). Uses the same variable set as the completion message: `{workflowName}`, `{taskDescription}`, `{taskId}`, `{phaseCount}`.
@@ -243,15 +247,15 @@ There is **no separate** `cancelledMessage` field on `WorkflowDefinition`. The c
 
 Resolved when the agent tries to stop while the workflow is still active. Forces the agent to continue.
 
-| Variable | Source | Example Value |
-|---|---|---|
-| `{workflowName}` | `definition.name` | `Refine, Plan, Implement, Review` |
-| `{taskDescription}` | User's original description | `Add login page` |
-| `{taskId}` | Generated task ID | `wf-1747234567890-a3f2k1` |
-| `{workflowKey}` | `state.workflowKey` | `rpir` |
-| `{phaseName}` | Current phase `name` | `Implementation` |
-| `{phaseEmoji}` | Current phase `emoji` | `⚙️` |
-| `{phaseInstructions}` | Current phase's full instructions text | *(the raw instructions string)* |
+| Variable              | Source                                 | Example Value                     |
+| --------------------- | -------------------------------------- | --------------------------------- |
+| `{workflowName}`      | `definition.name`                      | `Refine, Plan, Implement, Review` |
+| `{taskDescription}`   | User's original description            | `Add login page`                  |
+| `{taskId}`            | Generated task ID                      | `wf-1747234567890-a3f2k1`         |
+| `{workflowKey}`       | `state.workflowKey`                    | `rpir`                            |
+| `{phaseName}`         | Current phase `name`                   | `Implementation`                  |
+| `{phaseEmoji}`        | Current phase `emoji`                  | `⚙️`                              |
+| `{phaseInstructions}` | Current phase's full instructions text | _(the raw instructions string)_   |
 
 ---
 

@@ -87,10 +87,7 @@ Example of expected style:
 /**
  * Validate a workflow definition and return an error message if invalid.
  */
-export function validateWorkflowDefinition(
-  key: string,
-  def: WorkflowDefinition,
-): string | null {
+export function validateWorkflowDefinition(key: string, def: WorkflowDefinition): string | null {
   // ...
 }
 ```

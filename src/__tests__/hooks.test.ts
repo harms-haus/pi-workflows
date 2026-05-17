@@ -466,9 +466,7 @@ describe("updateStatus", () => {
         name: "Top Workflow",
         commandName: "top",
         initialMessage: "Start",
-        phases: [
-          { subworkflow: true, workflowKey: "inner", resolved: innerDef },
-        ],
+        phases: [{ subworkflow: true, workflowKey: "inner", resolved: innerDef }],
       },
       inner: innerDef,
     };
@@ -482,7 +480,7 @@ describe("updateStatus", () => {
       workflowKey: "top-wf",
       currentPath: [
         { workflowKey: "top-wf", phaseIndex: 99 }, // out of bounds!
-        { workflowKey: "inner", phaseIndex: 0 },  // valid, innermost
+        { workflowKey: "inner", phaseIndex: 0 }, // valid, innermost
       ],
       globalStepCount: 1,
       taskId: "task-oob",

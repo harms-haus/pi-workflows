@@ -21,23 +21,14 @@ export default tseslint.config(
       // Existing good rules
       "@typescript-eslint/no-explicit-any": "error",
       "@typescript-eslint/explicit-function-return-type": "off",
-      "@typescript-eslint/no-unused-vars": [
-        "error",
-        { argsIgnorePattern: "^_" },
-      ],
-      "@typescript-eslint/consistent-type-imports": [
-        "error",
-        { prefer: "type-imports" },
-      ],
+      "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
+      "@typescript-eslint/consistent-type-imports": ["error", { prefer: "type-imports" }],
       "@typescript-eslint/no-non-null-assertion": "error",
       "no-console": ["warn", { allow: ["warn", "error"] }],
 
       // Complexity rules
       "max-depth": ["error", 5],
-      "max-lines-per-function": [
-        "error",
-        { max: 100, skipBlankLines: true, skipComments: true },
-      ],
+      "max-lines-per-function": ["error", { max: 100, skipBlankLines: true, skipComments: true }],
       complexity: ["error", 15],
 
       // Strict rules — graduated to error

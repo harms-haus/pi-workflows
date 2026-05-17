@@ -12,10 +12,10 @@ State lives as a single closure-scoped variable in [`src/index.ts`](../src/index
 let state: WorkflowState | null = null;
 ```
 
-| Value | Meaning |
-|-------|---------|
-| `null` | No workflow has been started, or the previous workflow completed/was cancelled and unloaded. |
-| `WorkflowState` with `active: true` | A workflow is currently executing. The agent is expected to be working through phases. |
+| Value                                | Meaning                                                                                                                                                            |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `null`                               | No workflow has been started, or the previous workflow completed/was cancelled and unloaded.                                                                       |
+| `WorkflowState` with `active: true`  | A workflow is currently executing. The agent is expected to be working through phases.                                                                             |
 | `WorkflowState` with `active: false` | The workflow has finished all phases (or was cancelled) but the completion notification has not yet been sent. A transient state consumed by the `agent_end` hook. |
 
 There is **never more than one** active workflow per session. Starting a new workflow while one is active prompts the user for confirmation.
@@ -58,18 +58,18 @@ There is **never more than one** active workflow per session. Starting a new wor
 
 Defined in [`src/types.ts`](../src/types.ts):
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `active` | `boolean` | `true` when the agent should be working on phases. Set to `false` when the top-level workflow completes or is cancelled. |
-| `workflowKey` | `string` | The top-level workflow definition key from settings (e.g. `"rpir"`, `"code-review"`). |
-| `currentPath` | `PathSegment[]` | Navigation stack. Index 0 = root workflow, last index = innermost scope. |
-| `globalStepCount` | `number` | Monotonically increasing counter. Incremented on every `advancePhase()`, `loopPhase()`, and subworkflow entry. |
-| `taskId` | `string` | Unique identifier for this workflow run. Format: `wf-{timestamp}-{random6}`. |
-| `taskDescription` | `string` | The user's original task description from the `/workflow` command. |
-| `startedAt` | `number` | Unix timestamp (ms) when the workflow was created via `Date.now()`. |
-| `completionNotified` | `boolean` | Whether the DONE notification has already been sent. Prevents duplicate messages on repeated `agent_end` events. |
-| `cancelled` | `boolean` | `true` if the workflow was cancelled (not completed normally). Controls which completion message template is used. |
-| `_cancelPending` | `boolean` (optional) | Internal flag set after the first cancel request, requiring a second call to confirm cancellation within the same turn. |
+| Field                | Type                 | Description                                                                                                              |
+| -------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `active`             | `boolean`            | `true` when the agent should be working on phases. Set to `false` when the top-level workflow completes or is cancelled. |
+| `workflowKey`        | `string`             | The top-level workflow definition key from settings (e.g. `"rpir"`, `"code-review"`).                                    |
+| `currentPath`        | `PathSegment[]`      | Navigation stack. Index 0 = root workflow, last index = innermost scope.                                                 |
+| `globalStepCount`    | `number`             | Monotonically increasing counter. Incremented on every `advancePhase()`, `loopPhase()`, and subworkflow entry.           |
+| `taskId`             | `string`             | Unique identifier for this workflow run. Format: `wf-{timestamp}-{random6}`.                                             |
+| `taskDescription`    | `string`             | The user's original task description from the `/workflow` command.                                                       |
+| `startedAt`          | `number`             | Unix timestamp (ms) when the workflow was created via `Date.now()`.                                                      |
+| `completionNotified` | `boolean`            | Whether the DONE notification has already been sent. Prevents duplicate messages on repeated `agent_end` events.         |
+| `cancelled`          | `boolean`            | `true` if the workflow was cancelled (not completed normally). Controls which completion message template is used.       |
+| `_cancelPending`     | `boolean` (optional) | Internal flag set after the first cancel request, requiring a second call to confirm cancellation within the same turn.  |
 
 ### Task ID format
 
@@ -91,8 +91,8 @@ Each element in the `currentPath` stack represents one scope level:
 
 ```typescript
 interface PathSegment {
-  workflowKey: string;  // which workflow definition this scope refers to
-  phaseIndex: number;   // current position in that workflow's phases array
+  workflowKey: string; // which workflow definition this scope refers to
+  phaseIndex: number; // current position in that workflow's phases array
 }
 ```
 
@@ -242,6 +242,7 @@ state.globalStepCount++;
 **Guards:**
 
 - If the innermost workflow definition has `loopable: false`, the operation is rejected:
+
   ```
   { error: "Looping is disabled for this workflow." }
   ```
@@ -273,21 +274,21 @@ State is persisted after every mutation so the session can recover after a crash
 ### Storage mechanism
 
 ```typescript
-pi.appendEntry('workflow:state', { ...state });
+pi.appendEntry("workflow:state", { ...state });
 ```
 
 Each call appends a **new** entry to the session branch (no in-place updates). The latest entry is found by scanning in reverse during reconstruction.
 
 ### When persistence occurs
 
-| Trigger | Location | Condition |
-|---------|----------|-----------|
-| Workflow creation | `registerWorkflowCommand` handler | Immediately after `createInitialState()` |
-| Phase advance | `workflow_step` tool, action `next` | After `advancePhase()` mutates state |
-| Phase loop | `workflow_step` tool, action `loop` | After `loopPhase()` mutates state |
-| Cancellation (tool) | `workflow_step` tool, action `cancel` | After setting `cancelled: true`, `active: false` |
-| Cancellation (command) | `/cancel-workflow` command | After setting `cancelled: true`, `active: false` |
-| Completion notification | `agent_end` hook | After sending the DONE message (marks `completionNotified: true`) |
+| Trigger                 | Location                              | Condition                                                         |
+| ----------------------- | ------------------------------------- | ----------------------------------------------------------------- |
+| Workflow creation       | `registerWorkflowCommand` handler     | Immediately after `createInitialState()`                          |
+| Phase advance           | `workflow_step` tool, action `next`   | After `advancePhase()` mutates state                              |
+| Phase loop              | `workflow_step` tool, action `loop`   | After `loopPhase()` mutates state                                 |
+| Cancellation (tool)     | `workflow_step` tool, action `cancel` | After setting `cancelled: true`, `active: false`                  |
+| Cancellation (command)  | `/cancel-workflow` command            | After setting `cancelled: true`, `active: false`                  |
+| Completion notification | `agent_end` hook                      | After sending the DONE message (marks `completionNotified: true`) |
 
 ### Entry structure in the session branch
 
@@ -298,9 +299,7 @@ Each call appends a **new** entry to the session branch (no in-place updates). T
   "data": {
     "active": true,
     "workflowKey": "rpir",
-    "currentPath": [
-      { "workflowKey": "rpir", "phaseIndex": 2 }
-    ],
+    "currentPath": [{ "workflowKey": "rpir", "phaseIndex": 2 }],
     "globalStepCount": 2,
     "taskId": "wf-1747234567890-a3f9k2",
     "taskDescription": "Refactor authentication module",
@@ -337,10 +336,12 @@ Old versions of pi-workflows used a single `currentPhaseIndex` field (no subwork
 
 ```typescript
 if (data.currentPhaseIndex !== undefined && !data.currentPath) {
-  data.currentPath = [{
-    workflowKey: data.workflowKey,
-    phaseIndex: data.currentPhaseIndex,
-  }];
+  data.currentPath = [
+    {
+      workflowKey: data.workflowKey,
+      phaseIndex: data.currentPhaseIndex,
+    },
+  ];
   delete data.currentPhaseIndex;
 }
 ```
@@ -369,8 +370,7 @@ if (!Array.isArray(data.currentPath) || data.currentPath.length === 0) {
 
 // Reject malformed segments
 for (const seg of data.currentPath) {
-  if (typeof seg.workflowKey !== 'string' ||
-      typeof seg.phaseIndex !== 'number') {
+  if (typeof seg.workflowKey !== "string" || typeof seg.phaseIndex !== "number") {
     return null;
   }
 }
@@ -380,10 +380,10 @@ Invalid states are silently discarded — the session starts with `state = null`
 
 ### When reconstruction runs
 
-| Event | Handler in `index.ts` |
-|-------|----------------------|
+| Event           | Handler in `index.ts`                                          |
+| --------------- | -------------------------------------------------------------- |
 | `session_start` | Definitions are loaded, then `reconstructState(ctx)` is called |
-| `session_tree` | Same flow — reload definitions and reconstruct state |
+| `session_tree`  | Same flow — reload definitions and reconstruct state           |
 
 ---
 
@@ -407,11 +407,11 @@ Invalid states are silently discarded — the session starts with `state = null`
 
 ```typescript
 interface ActiveWorkflow {
-  definition: WorkflowDefinition;       // top-level workflow definition
-  state: WorkflowState;                  // current state
-  currentPhase: PhaseDefinition;         // innermost concrete phase (never a SubworkflowRef)
-  currentPhaseEntry: PhaseEntry;         // raw entry at top of stack (may be SubworkflowRef)
-  nextPhase: PhaseEntry | null;          // next entry in innermost scope, or null
+  definition: WorkflowDefinition; // top-level workflow definition
+  state: WorkflowState; // current state
+  currentPhase: PhaseDefinition; // innermost concrete phase (never a SubworkflowRef)
+  currentPhaseEntry: PhaseEntry; // raw entry at top of stack (may be SubworkflowRef)
+  nextPhase: PhaseEntry | null; // next entry in innermost scope, or null
   breadcrumb: Array<{
     workflowKey: string;
     name: string;
@@ -450,6 +450,7 @@ Breadcrumb:
 ```
 
 This drives the status bar display:
+
 ```
 Release Pipeline > Code Review [2/3] > 🔍 Static Analysis [1/2]
 ```
@@ -462,9 +463,9 @@ Hooks don't modify the closure variable directly. Instead, they return a `HookSt
 
 ```typescript
 interface HookStateMutation {
-  unload: boolean;             // if true, set state = null
-  state?: WorkflowState;       // if set, replace state with this value
-  persist: boolean;            // if true, persist via pi.appendEntry
+  unload: boolean; // if true, set state = null
+  state?: WorkflowState; // if set, replace state with this value
+  persist: boolean; // if true, persist via pi.appendEntry
 }
 ```
 

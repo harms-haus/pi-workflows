@@ -29,9 +29,9 @@ name: "Release Pipeline"
 commandName: "release"
 initialMessage: "Starting {workflowName} for: {description}"
 phases:
-  - build.md                    # concrete phase (string = filename)
+  - build.md # concrete phase (string = filename)
   - { subworkflow: code-review } # subworkflow reference
-  - deploy.md                   # concrete phase
+  - deploy.md # concrete phase
 ```
 
 The `subworkflow` value must match the **directory name** of another workflow loaded from the same workflows root. During the two-pass loading process (see [Resolution and Loading](#resolution-and-loading)), the reference is replaced with a resolved link to the target workflow definition.
@@ -42,8 +42,8 @@ After loading, a subworkflow reference is represented as a [`SubworkflowReferenc
 
 ```typescript
 interface SubworkflowReference {
-  subworkflow: true;          // discriminator
-  workflowKey: string;        // directory name of the target workflow
+  subworkflow: true; // discriminator
+  workflowKey: string; // directory name of the target workflow
   resolved: WorkflowDefinition | null; // null after Pass 1, populated during Pass 2 resolution
 }
 ```
@@ -61,7 +61,7 @@ Some workflows exist solely to be consumed as subworkflows — they should never
 ```yaml
 # _shared/code-review/workflow.yaml
 name: "Code Review Cycle"
-show: "workflows"             # hidden from /workflow command
+show: "workflows" # hidden from /workflow command
 loopable: false
 phases:
   - static-analysis.md
@@ -122,8 +122,8 @@ The runtime uses a **path stack** (`currentPath`) to track position within poten
 
 ```typescript
 interface PathSegment {
-  workflowKey: string;  // which workflow
-  phaseIndex: number;   // which phase within that workflow
+  workflowKey: string; // which workflow
+  phaseIndex: number; // which phase within that workflow
 }
 ```
 
@@ -162,12 +162,12 @@ currentPath stack (bottom → top):
 
 `advancePhase()` in [`state.ts`](../src/state.ts) handles four cases when the agent calls `workflow_step` with action `next`:
 
-| Case | Condition | Action |
-|------|-----------|--------|
-| **1 — Enter subworkflow** | Current entry is a `SubworkflowReference` | **Push** new `PathSegment` onto stack with `phaseIndex: 0` |
-| **2 — Normal advance** | Current entry is a concrete phase, not the last in scope | Increment `phaseIndex` in the top segment |
-| **3 — Top-level done** | Last phase in root scope (`currentPath.length === 1`) | Set `active = false`, workflow is DONE |
-| **4 — Subworkflow complete** | Last phase in a subworkflow scope | **Pop** the stack, increment parent's `phaseIndex` |
+| Case                         | Condition                                                | Action                                                     |
+| ---------------------------- | -------------------------------------------------------- | ---------------------------------------------------------- |
+| **1 — Enter subworkflow**    | Current entry is a `SubworkflowReference`                | **Push** new `PathSegment` onto stack with `phaseIndex: 0` |
+| **2 — Normal advance**       | Current entry is a concrete phase, not the last in scope | Increment `phaseIndex` in the top segment                  |
+| **3 — Top-level done**       | Last phase in root scope (`currentPath.length === 1`)    | Set `active = false`, workflow is DONE                     |
+| **4 — Subworkflow complete** | Last phase in a subworkflow scope                        | **Pop** the stack, increment parent's `phaseIndex`         |
 
 #### Case 1 diagram — entering a subworkflow
 
@@ -353,7 +353,7 @@ Format: `{workflowName} > {subworkflowName} [current/total] > {emoji} {phaseName
 - The top-level workflow name appears without progress (just the name).
 - Every path segment (subworkflow or concrete phase) shows its own `[current/total]` progress within that scope.
 - Subworkflow levels have no emoji (they are not `PhaseDefinition` objects).
-- All segments are joined by ` > ` — no special separator.
+- All segments are joined by `>` — no special separator.
 - The innermost segment always has an emoji (it is the current concrete phase).
 
 For deeply nested workflows, this extends naturally:
@@ -400,29 +400,29 @@ For the complete `workflow.yaml` schema including all fields (role instructions,
 
 ### Types
 
-| Type | Description |
-|------|-------------|
+| Type                   | Description                                                                                              |
+| ---------------------- | -------------------------------------------------------------------------------------------------------- |
 | `SubworkflowReference` | A phase entry that delegates to another workflow. Fields: `subworkflow: true`, `workflowKey`, `resolved` |
-| `PathSegment` | A navigation stack element. Fields: `workflowKey`, `phaseIndex` |
-| `PhaseEntry` | Union type: `PhaseDefinition \| SubworkflowReference` |
-| `ActiveWorkflow` | Resolved runtime state. Includes `breadcrumb` array for display |
+| `PathSegment`          | A navigation stack element. Fields: `workflowKey`, `phaseIndex`                                          |
+| `PhaseEntry`           | Union type: `PhaseDefinition \| SubworkflowReference`                                                    |
+| `ActiveWorkflow`       | Resolved runtime state. Includes `breadcrumb` array for display                                          |
 
 ### Type guards
 
-| Function | Signature | Returns |
-|----------|-----------|---------|
-| `isSubworkflowRef` | `(entry: PhaseEntry) => boolean` | `true` if entry is a `SubworkflowReference` |
+| Function            | Signature                        | Returns                                         |
+| ------------------- | -------------------------------- | ----------------------------------------------- |
+| `isSubworkflowRef`  | `(entry: PhaseEntry) => boolean` | `true` if entry is a `SubworkflowReference`     |
 | `isPhaseDefinition` | `(entry: PhaseEntry) => boolean` | `true` if entry is a concrete `PhaseDefinition` |
 
 ### Key functions
 
-| Function | Module | Purpose |
-|----------|--------|---------|
-| `loadWorkflows(cwd?)` | `config/loading.ts` | Two-pass loading: directories → validate → cycle detect → resolve references |
-| `detectCycles(definitions)` | `config/validation.ts` | DFS 3-color cycle detection; returns error messages for cycles found |
-| `validateWorkflowDefinition(key, def)` | `config/validation.ts` | Validates a single definition; relaxed rules when `show: "workflows"` |
-| `advancePhase(state, definitions)` | `state.ts` | Four-case stack navigation (enter/advance/done/breakout) |
-| `loopPhase(state, definitions)` | `state.ts` | Restart innermost scope from phase 0 |
-| `resolveActive(state, definitions)` | `state.ts` | Resolve state to `ActiveWorkflow` with breadcrumb |
-| `phaseEntryName(entry)` | `state.ts` | Returns display name for a `PhaseEntry` — resolves subworkflow name from `resolved` or falls back to `workflowKey` |
-| `createInitialState(key, description)` | `state.ts` | Create fresh state with single-element `currentPath` stack |
+| Function                               | Module                 | Purpose                                                                                                            |
+| -------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `loadWorkflows(cwd?)`                  | `config/loading.ts`    | Two-pass loading: directories → validate → cycle detect → resolve references                                       |
+| `detectCycles(definitions)`            | `config/validation.ts` | DFS 3-color cycle detection; returns error messages for cycles found                                               |
+| `validateWorkflowDefinition(key, def)` | `config/validation.ts` | Validates a single definition; relaxed rules when `show: "workflows"`                                              |
+| `advancePhase(state, definitions)`     | `state.ts`             | Four-case stack navigation (enter/advance/done/breakout)                                                           |
+| `loopPhase(state, definitions)`        | `state.ts`             | Restart innermost scope from phase 0                                                                               |
+| `resolveActive(state, definitions)`    | `state.ts`             | Resolve state to `ActiveWorkflow` with breadcrumb                                                                  |
+| `phaseEntryName(entry)`                | `state.ts`             | Returns display name for a `PhaseEntry` — resolves subworkflow name from `resolved` or falls back to `workflowKey` |
+| `createInitialState(key, description)` | `state.ts`             | Create fresh state with single-element `currentPath` stack                                                         |

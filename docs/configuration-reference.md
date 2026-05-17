@@ -8,10 +8,10 @@ Complete reference for every field in `workflow.yaml` and phase `.md` files used
 
 pi-workflows uses a **two-tier file-based discovery model** for loading workflow definitions:
 
-| Tier | Location | Notes |
-|------|----------|-------|
-| **Global** | `~/.pi/agent/workflows/` (or `$PI_CODING_AGENT_DIR/workflows/`) | Shared across all projects. |
-| **Project** | `.pi/workflows/` (relative to project root / `cwd`) | Overrides global workflows with the same directory name. |
+| Tier        | Location                                                        | Notes                                                    |
+| ----------- | --------------------------------------------------------------- | -------------------------------------------------------- |
+| **Global**  | `~/.pi/agent/workflows/` (or `$PI_CODING_AGENT_DIR/workflows/`) | Shared across all projects.                              |
+| **Project** | `.pi/workflows/` (relative to project root / `cwd`)             | Overrides global workflows with the same directory name. |
 
 Each workflow lives in its own **directory**. The directory name becomes the workflow key. A `workflow.yaml` file serves as the entry point, and individual phase `.md` files define each phase's instructions and metadata.
 
@@ -72,21 +72,21 @@ Each phase is a Markdown file with **YAML frontmatter** for metadata and a **Mar
 
 ## `workflow.yaml` Field Reference
 
-| Field | Type | Required | Default | Description |
-|-------|------|----------|---------|-------------|
-| `name` | `string` | **Yes** | — | Human-readable workflow name displayed in the status bar, messages, and the `/workflow` listing. Must be a non-empty string. |
-| `commandName` | `string` | Yes (if `show: "user"`) | `""` | Slash-command identifier used as `/workflow {commandName} {description}`. Must match `^[a-zA-Z0-9_-]+$`. Ignored for internal workflows (`show: "workflows"`). |
-| `initialMessage` | `string` | Yes (if `show: "user"`) | `""` | Template string sent to the agent when the workflow starts. Supports template variables: `{workflowName}`, `{description}`, `{workflowKey}`, `{firstPhaseId}`, `{firstPhaseName}`, `{firstPhaseEmoji}`, `{firstPhaseProfiles}`. |
-| `phases` | `array` | **Yes** | — | Ordered list of phase entries. Each entry is either a **string** (filename of a `.md` phase file) or an **object** with `{ subworkflow: "workflow-key" }`. Must contain at least 1 entry. |
-| `show` | `"user" \| "workflows"` | No | `"user"` | Controls visibility. `"user"` = listed in `/workflow` command. `"workflows"` = hidden from direct invocation; only usable as a subworkflow phase in another workflow. |
-| `loopable` | `boolean` | No | `true` | Whether the workflow can be restarted from phase 0 via the `loop` action on `workflow_step`. When `false`, the loop action returns an error. |
-| `sessionNamePrefix` | `string` | No | `"Workflow: "` | Prefix prepended to the task description when setting the session name. |
-| `sessionNameMaxLength` | `number` | No | `50` | Maximum character count for the session name (after the prefix). The description is truncated to this length with a trailing `…` if it exceeds it. |
-| `roleInstruction` | `string` | No | *(built-in default)* | Template prepended to every context injection. All [Phase Instructions variables](template-variables.md#phase-instructions) are available. If omitted, a default instructing the agent to act as orchestrator and delegate to subagents is used. |
-| `advanceReminder` | `string` | No | *(built-in default)* | Template appended at the end of every context injection reminding the agent to advance. All [Phase Instructions variables](template-variables.md#phase-instructions) are available. |
-| `blockReasonTemplate` | `string` | No | *(built-in default)* | Template for the reason shown when a tool call is blocked. Variables: `{workflowName}`, `{phaseName}`, `{toolName}`, `{allowedTools}`. |
-| `completionMessage` | `string` | No | *(built-in default)* | Template sent when the workflow reaches the DONE state. Variables: `{workflowName}`, `{taskDescription}`, `{taskId}`, `{phaseCount}`. |
-| `notDoneReminder` | `string` | No | *(built-in default)* | Template injected when the agent tries to finish but the workflow is still active. Variables: `{workflowName}`, `{phaseName}`, `{phaseEmoji}`, `{phaseInstructions}`, `{taskDescription}`, `{taskId}`, `{workflowKey}`. |
+| Field                  | Type                    | Required                | Default              | Description                                                                                                                                                                                                                                      |
+| ---------------------- | ----------------------- | ----------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `name`                 | `string`                | **Yes**                 | —                    | Human-readable workflow name displayed in the status bar, messages, and the `/workflow` listing. Must be a non-empty string.                                                                                                                     |
+| `commandName`          | `string`                | Yes (if `show: "user"`) | `""`                 | Slash-command identifier used as `/workflow {commandName} {description}`. Must match `^[a-zA-Z0-9_-]+$`. Ignored for internal workflows (`show: "workflows"`).                                                                                   |
+| `initialMessage`       | `string`                | Yes (if `show: "user"`) | `""`                 | Template string sent to the agent when the workflow starts. Supports template variables: `{workflowName}`, `{description}`, `{workflowKey}`, `{firstPhaseId}`, `{firstPhaseName}`, `{firstPhaseEmoji}`, `{firstPhaseProfiles}`.                  |
+| `phases`               | `array`                 | **Yes**                 | —                    | Ordered list of phase entries. Each entry is either a **string** (filename of a `.md` phase file) or an **object** with `{ subworkflow: "workflow-key" }`. Must contain at least 1 entry.                                                        |
+| `show`                 | `"user" \| "workflows"` | No                      | `"user"`             | Controls visibility. `"user"` = listed in `/workflow` command. `"workflows"` = hidden from direct invocation; only usable as a subworkflow phase in another workflow.                                                                            |
+| `loopable`             | `boolean`               | No                      | `true`               | Whether the workflow can be restarted from phase 0 via the `loop` action on `workflow_step`. When `false`, the loop action returns an error.                                                                                                     |
+| `sessionNamePrefix`    | `string`                | No                      | `"Workflow: "`       | Prefix prepended to the task description when setting the session name.                                                                                                                                                                          |
+| `sessionNameMaxLength` | `number`                | No                      | `50`                 | Maximum character count for the session name (after the prefix). The description is truncated to this length with a trailing `…` if it exceeds it.                                                                                               |
+| `roleInstruction`      | `string`                | No                      | _(built-in default)_ | Template prepended to every context injection. All [Phase Instructions variables](template-variables.md#phase-instructions) are available. If omitted, a default instructing the agent to act as orchestrator and delegate to subagents is used. |
+| `advanceReminder`      | `string`                | No                      | _(built-in default)_ | Template appended at the end of every context injection reminding the agent to advance. All [Phase Instructions variables](template-variables.md#phase-instructions) are available.                                                              |
+| `blockReasonTemplate`  | `string`                | No                      | _(built-in default)_ | Template for the reason shown when a tool call is blocked. Variables: `{workflowName}`, `{phaseName}`, `{toolName}`, `{allowedTools}`.                                                                                                           |
+| `completionMessage`    | `string`                | No                      | _(built-in default)_ | Template sent when the workflow reaches the DONE state. Variables: `{workflowName}`, `{taskDescription}`, `{taskId}`, `{phaseCount}`.                                                                                                            |
+| `notDoneReminder`      | `string`                | No                      | _(built-in default)_ | Template injected when the agent tries to finish but the workflow is still active. Variables: `{workflowName}`, `{phaseName}`, `{phaseEmoji}`, `{phaseInstructions}`, `{taskDescription}`, `{taskId}`, `{workflowKey}`.                          |
 
 ### Example `workflow.yaml`
 
@@ -117,7 +117,7 @@ Instead of a filename string, a phase entry can be an object referencing another
 ```yaml
 phases:
   - research.md
-  - subworkflow: shared-utilities   # delegates to the "shared-utilities" workflow
+  - subworkflow: shared-utilities # delegates to the "shared-utilities" workflow
   - final-review.md
 ```
 
@@ -154,15 +154,15 @@ for the planning phase.
 
 ### Frontmatter Fields
 
-| Field | Type | Required | Default | Description |
-|-------|------|----------|---------|-------------|
-| `id` | `string` | **Yes** | — | Machine-readable phase identifier. Must be **unique within the workflow** (duplicate IDs are a validation error). |
-| `name` | `string` | **Yes** | — | Human-readable phase name shown in the status bar and context injection. |
-| `emoji` | `string` | **Yes** | — | Emoji string displayed in the status bar, messages, and breadcrumb. Must be a non-empty string. |
-| `tools` | `object` | No | — | Tool restriction configuration. See [Tool Configuration Details](#tool-configuration-details). |
-| `tools.blacklist` | `string[]` | No | — | List of tool names to **block** during this phase. Mutually exclusive with `whitelist`. |
-| `tools.whitelist` | `string[]` | No | — | List of tool names to **allow** during this phase. All other tools are blocked. Mutually exclusive with `blacklist`. |
-| `availableProfiles` | `string[]` | No | — | Subagent profiles listed in the context injection as available for this phase. Informational only — not enforced by the extension. |
+| Field               | Type       | Required | Default | Description                                                                                                                        |
+| ------------------- | ---------- | -------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `id`                | `string`   | **Yes**  | —       | Machine-readable phase identifier. Must be **unique within the workflow** (duplicate IDs are a validation error).                  |
+| `name`              | `string`   | **Yes**  | —       | Human-readable phase name shown in the status bar and context injection.                                                           |
+| `emoji`             | `string`   | **Yes**  | —       | Emoji string displayed in the status bar, messages, and breadcrumb. Must be a non-empty string.                                    |
+| `tools`             | `object`   | No       | —       | Tool restriction configuration. See [Tool Configuration Details](#tool-configuration-details).                                     |
+| `tools.blacklist`   | `string[]` | No       | —       | List of tool names to **block** during this phase. Mutually exclusive with `whitelist`.                                            |
+| `tools.whitelist`   | `string[]` | No       | —       | List of tool names to **allow** during this phase. All other tools are blocked. Mutually exclusive with `blacklist`.               |
+| `availableProfiles` | `string[]` | No       | —       | Subagent profiles listed in the context injection as available for this phase. Informational only — not enforced by the extension. |
 
 ### Markdown Body
 
@@ -239,35 +239,35 @@ All validation is performed by `validateWorkflowDefinition()`. Workflows that fa
 
 ### Workflow-Level Validation
 
-| Rule | Applies To | Error Condition |
-|------|-----------|-----------------|
-| `name` required | All | Missing, empty, or not a string |
-| `commandName` required | `show: "user"` | Missing, empty, or not a string |
-| `commandName` format | `show: "user"` | Does not match `^[a-zA-Z0-9_-]+$` |
-| `initialMessage` required | `show: "user"` | Missing, empty, or not a string |
-| `phases` required | All | Missing, not an array, or has fewer than 1 entry |
-| `loopable` type | All | Present but not a boolean |
-| `show` value | All | Present but not `"user"` or `"workflows"` |
+| Rule                      | Applies To     | Error Condition                                  |
+| ------------------------- | -------------- | ------------------------------------------------ |
+| `name` required           | All            | Missing, empty, or not a string                  |
+| `commandName` required    | `show: "user"` | Missing, empty, or not a string                  |
+| `commandName` format      | `show: "user"` | Does not match `^[a-zA-Z0-9_-]+$`                |
+| `initialMessage` required | `show: "user"` | Missing, empty, or not a string                  |
+| `phases` required         | All            | Missing, not an array, or has fewer than 1 entry |
+| `loopable` type           | All            | Present but not a boolean                        |
+| `show` value              | All            | Present but not `"user"` or `"workflows"`        |
 
 For `show: "workflows"` workflows, `commandName` and `initialMessage` are **not required**. They may be omitted or empty.
 
 ### Phase-Level Validation (Concrete Phases)
 
-| Rule | Error Condition |
-|------|-----------------|
-| `id` required | Missing, empty, or not a string |
-| `id` unique | Duplicate `id` within the same workflow |
-| `name` required | Missing, empty, or not a string |
-| `emoji` required | Missing, empty, or not a string |
-| `instructions` required | Missing, empty, or not a string (from `.md` body) |
-| `tools.blacklist` type | Present but not an array |
-| `tools.whitelist` type | Present but not an array |
-| blacklist/whitelist mutual exclusivity | Both set on the same phase |
+| Rule                                   | Error Condition                                   |
+| -------------------------------------- | ------------------------------------------------- |
+| `id` required                          | Missing, empty, or not a string                   |
+| `id` unique                            | Duplicate `id` within the same workflow           |
+| `name` required                        | Missing, empty, or not a string                   |
+| `emoji` required                       | Missing, empty, or not a string                   |
+| `instructions` required                | Missing, empty, or not a string (from `.md` body) |
+| `tools.blacklist` type                 | Present but not an array                          |
+| `tools.whitelist` type                 | Present but not an array                          |
+| blacklist/whitelist mutual exclusivity | Both set on the same phase                        |
 
 ### Subworkflow Reference Validation
 
-| Rule | Error Condition |
-|------|-----------------|
+| Rule                   | Error Condition                 |
+| ---------------------- | ------------------------------- |
 | `workflowKey` required | Missing, empty, or not a string |
 
 Subworkflow references skip `id`/`name`/`emoji`/`instructions` validation — those fields live on the resolved target workflow.
@@ -317,7 +317,7 @@ After all validation, cycle removal, and broken-reference cascading, the loader 
 [pi-workflows] Duplicate commandName "rpir" in workflows "old-rpir" and "new-rpir". The first one found will be used.
 ```
 
-3. **The first workflow encountered wins.** Since project definitions are spread over global ones (`{ ...globalDefs, ...projectDefs }`), project definitions are iterated last — the iteration order of `Object.entries` determines which "first" means. In practice, if a global and project workflow share a `commandName`, the project one overrides the global one's *definition* (due to the spread), but the duplicate detection logs a warning and the first-encountered one wins.
+3. **The first workflow encountered wins.** Since project definitions are spread over global ones (`{ ...globalDefs, ...projectDefs }`), project definitions are iterated last — the iteration order of `Object.entries` determines which "first" means. In practice, if a global and project workflow share a `commandName`, the project one overrides the global one's _definition_ (due to the spread), but the duplicate detection logs a warning and the first-encountered one wins.
 
 4. Workflows with `show: "workflows"` that have no `commandName` are skipped during this check.
 

@@ -10,14 +10,14 @@ For the overall extension architecture, see [architecture.md](architecture.md). 
 
 All four hooks are wired in [`src/index.ts`](../src/index.ts) via `pi.on()`:
 
-| Framework Event | Hook Function | Called When |
-|---|---|---|
-| `session_start` | `updateStatus` | Session loaded or created |
-| `session_tree` | `updateStatus` | Session branch changed |
-| `turn_end` | `updateStatus` | Agent turn completed |
-| `tool_call` | `handleToolCall` | Agent requests a tool invocation |
-| `before_agent_start` | `handleBeforeAgentStart` | Before the agent begins a new turn |
-| `agent_end` | `handleAgentEnd` | Agent stops (completion, error, or interruption) |
+| Framework Event      | Hook Function            | Called When                                      |
+| -------------------- | ------------------------ | ------------------------------------------------ |
+| `session_start`      | `updateStatus`           | Session loaded or created                        |
+| `session_tree`       | `updateStatus`           | Session branch changed                           |
+| `turn_end`           | `updateStatus`           | Agent turn completed                             |
+| `tool_call`          | `handleToolCall`         | Agent requests a tool invocation                 |
+| `before_agent_start` | `handleBeforeAgentStart` | Before the agent begins a new turn               |
+| `agent_end`          | `handleAgentEnd`         | Agent stops (completion, error, or interruption) |
 
 `session_start` and `session_tree` also handle definition loading and state reconstruction before calling `updateStatus`.
 
@@ -30,7 +30,7 @@ function updateStatus(
   ctx: { ui: { setStatus: (key: string, text: string | undefined) => void } },
   state: WorkflowState | null,
   definitions: Record<string, WorkflowDefinition>,
-): void
+): void;
 ```
 
 **Called on:** `session_start`, `session_tree`, `turn_end`
@@ -51,11 +51,11 @@ function updateStatus(
 
 4. **Bounds check** → if any segment's `phaseIndex` is out of bounds (>= phases.length), clears status bar and returns.
 
-5. **Format and set** → joins all parts with ` > ` and calls `ctx.ui.setStatus("workflow", statusString)`.
+5. **Format and set** → joins all parts with `>` and calls `ctx.ui.setStatus("workflow", statusString)`.
 
 ### Status Format
 
-All status strings use ` > ` as the segment separator. Every level in the path — including subworkflow containers — shows its own `[N/M]` progress counter. Emojis appear only on concrete `PhaseDefinition` entries; subworkflow levels (`SubworkflowReference`) show name + progress without an emoji.
+All status strings use `>` as the segment separator. Every level in the path — including subworkflow containers — shows its own `[N/M]` progress counter. Emojis appear only on concrete `PhaseDefinition` entries; subworkflow levels (`SubworkflowReference`) show name + progress without an emoji.
 
 **Linear workflow** (`currentPath.length === 1`):
 
@@ -92,7 +92,7 @@ function handleToolCall(
   event: ToolCallEvent,
   state: WorkflowState | null,
   definitions: Record<string, WorkflowDefinition>,
-): { block: true; reason: string } | void
+): { block: true; reason: string } | void;
 ```
 
 **Called on:** `tool_call`
@@ -124,6 +124,7 @@ otherwise → allow
 ```
 
 Key behaviors:
+
 - **`workflow_step` is always allowed** regardless of blacklist/whitelist. This ensures the agent can always advance phases.
 - If a phase has no `tools` property, all tools are permitted.
 - Exactly one of `blacklist` or `whitelist` may be set per phase (mutually exclusive).
@@ -132,11 +133,11 @@ Key behaviors:
 
 When a tool is blocked, the reason string is generated from the definition's `blockReasonTemplate` (or the built-in default). Available template variables:
 
-| Variable | Description |
-|---|---|
-| `{workflowName}` | Human-readable workflow name |
-| `{phaseName}` | Current phase name |
-| `{toolName}` | The tool that was blocked |
+| Variable         | Description                            |
+| ---------------- | -------------------------------------- |
+| `{workflowName}` | Human-readable workflow name           |
+| `{phaseName}`    | Current phase name                     |
+| `{toolName}`     | The tool that was blocked              |
 | `{allowedTools}` | Human-readable list of permitted tools |
 
 **Default template:**
@@ -157,7 +158,7 @@ When the block comes from a blacklist, `{allowedTools}` resolves to `"all except
 function handleBeforeAgentStart(
   state: WorkflowState | null,
   definitions: Record<string, WorkflowDefinition>,
-): { message: { customType: string; content: string; display: boolean } } | void
+): { message: { customType: string; content: string; display: boolean } } | void;
 ```
 
 **Called on:** `before_agent_start`
@@ -174,16 +175,16 @@ The returned message is injected into the conversation before the agent begins i
 
 The prompt is assembled from these sections in order:
 
-| Section | Source | Notes |
-|---|---|---|
-| **Header line** | `[Workflow path: {breadcrumb} ▸ {emoji} {name}]` | Breadcrumb from `active.breadcrumb` |
-| **Role instruction** | `definition.roleInstruction` or default | Template-resolved with workflow/phase variables |
-| **Task details** | `taskDescription`, `taskId` | From `state` |
-| **Current phase** | Emoji + name | From `active.currentPhase` |
-| **Progress** | `globalStepCount` and `phaseIndex`/total | Format varies for linear vs nested |
-| **Phase instructions** | `currentPhase.instructions` | Template-resolved |
-| **Profiles** | `availableProfiles` + all workflow profiles | Lists per-phase and global profiles |
-| **Advance reminder** | `definition.advanceReminder` or default | Reminds agent to call `workflow_step` |
+| Section                | Source                                           | Notes                                           |
+| ---------------------- | ------------------------------------------------ | ----------------------------------------------- |
+| **Header line**        | `[Workflow path: {breadcrumb} ▸ {emoji} {name}]` | Breadcrumb from `active.breadcrumb`             |
+| **Role instruction**   | `definition.roleInstruction` or default          | Template-resolved with workflow/phase variables |
+| **Task details**       | `taskDescription`, `taskId`                      | From `state`                                    |
+| **Current phase**      | Emoji + name                                     | From `active.currentPhase`                      |
+| **Progress**           | `globalStepCount` and `phaseIndex`/total         | Format varies for linear vs nested              |
+| **Phase instructions** | `currentPhase.instructions`                      | Template-resolved                               |
+| **Profiles**           | `availableProfiles` + all workflow profiles      | Lists per-phase and global profiles             |
+| **Advance reminder**   | `definition.advanceReminder` or default          | Reminds agent to call `workflow_step`           |
 
 **Default role instruction:**
 
@@ -208,7 +209,7 @@ function handleAgentEnd(
   definitions: Record<string, WorkflowDefinition>,
   ctx: ExtensionContext,
   event: AgentEndEvent,
-): HookStateMutation
+): HookStateMutation;
 ```
 
 **Called on:** `agent_end`
@@ -313,23 +314,23 @@ Returned by `handleAgentEnd` and consumed by `index.ts` in the `agent_end` handl
 ```ts
 const mutation = handleAgentEnd(pi, state, definitions, ctx, event);
 if (mutation.unload) {
-  state = null;                    // Unload: clear module state
+  state = null; // Unload: clear module state
 } else if (mutation.state) {
-  state = mutation.state;          // Replace: use the returned state
+  state = mutation.state; // Replace: use the returned state
 }
 if (mutation.persist && state) {
-  persistState(pi, state);         // Persist: write to session entry log
+  persistState(pi, state); // Persist: write to session entry log
 }
 ```
 
 ### Mutation Semantics by Case
 
-| Case | `unload` | `state` | `persist` | Effect |
-|---|---|---|---|---|
-| No-op | `false` | — | `false` | No changes |
-| Normal completion | `true` | — | `true` | State persisted, then unloaded |
-| Cancellation | `true` | — | `false` | State discarded, unloaded |
-| Still active / countdown | `false` | — | `false` | No state change; auto-continue fires |
+| Case                     | `unload` | `state` | `persist` | Effect                               |
+| ------------------------ | -------- | ------- | --------- | ------------------------------------ |
+| No-op                    | `false`  | —       | `false`   | No changes                           |
+| Normal completion        | `true`   | —       | `true`    | State persisted, then unloaded       |
+| Cancellation             | `true`   | —       | `false`   | State discarded, unloaded            |
+| Still active / countdown | `false`  | —       | `false`   | No state change; auto-continue fires |
 
 ---
 
@@ -337,11 +338,11 @@ if (mutation.persist && state) {
 
 The hooks produce three distinct `customType` values, each with a registered renderer in [`src/renderers.ts`](../src/renderers.ts):
 
-| Custom Type | Produced By | `display` | `triggerTurn` | Rendered Appearance |
-|---|---|---|---|---|
-| `workflow:context` | `handleBeforeAgentStart` | `false` | — | `🔄 [Workflow Context injected]` (dim) |
-| `workflow:complete` | `handleAgentEnd` (Case A) | `true` | `false` | Bold success/completion message in green |
-| `workflow:countdown` | `handleAgentEnd` (Case B) | `true` | `false` | `⏳ Auto-continuing workflow in 3s...` (dim) |
+| Custom Type          | Produced By               | `display` | `triggerTurn` | Rendered Appearance                          |
+| -------------------- | ------------------------- | --------- | ------------- | -------------------------------------------- |
+| `workflow:context`   | `handleBeforeAgentStart`  | `false`   | —             | `🔄 [Workflow Context injected]` (dim)       |
+| `workflow:complete`  | `handleAgentEnd` (Case A) | `true`    | `false`       | Bold success/completion message in green     |
+| `workflow:countdown` | `handleAgentEnd` (Case B) | `true`    | `false`       | `⏳ Auto-continuing workflow in 3s...` (dim) |
 
 ### Renderer Details
 

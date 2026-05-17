@@ -34,9 +34,9 @@ Agent profiles live in `~/.pi/agent/agent-profiles/` as `.md` files with YAML fr
 ```markdown
 ---
 name: my-profile
-provider: openai          # Provider ID
-model: gpt-4o             # Model ID
-thinkingLevel: medium     # low | medium | high
+provider: openai # Provider ID
+model: gpt-4o # Model ID
+thinkingLevel: medium # low | medium | high
 tools: read,bash,edit,write,lsp-diagnostics,lsp-find-references,lsp-goto-definition
 ---
 
@@ -44,6 +44,7 @@ System prompt for the agent goes here as free-form markdown.
 ```
 
 **Key fields:**
+
 - `name` — must match the filename (without `.md`)
 - `tools` — comma-separated list of tools the subagent can use. Omitting a tool prevents the subagent from using it.
 - `thinkingLevel` — controls reasoning effort
@@ -58,25 +59,27 @@ System prompt for the agent goes here as free-form markdown.
 ## workflow.yaml Schema
 
 ```yaml
-name: Human-Readable Workflow Name    # Required
-commandName: my-command               # Required for user-facing workflows. Used as: /workflow my-command <desc>
-sessionNamePrefix: 'Prefix: '         # Optional. Shown in TUI session name
-sessionNameMaxLength: 50              # Optional. Default 50
-initialMessage: |                     # Required for user-facing workflows
+name: Human-Readable Workflow Name # Required
+commandName: my-command # Required for user-facing workflows. Used as: /workflow my-command <desc>
+sessionNamePrefix: "Prefix: " # Optional. Shown in TUI session name
+sessionNameMaxLength: 50 # Optional. Default 50
+initialMessage: | # Required for user-facing workflows
   Start the {workflowName} for: "{description}"
   Begin with Phase 1 ({firstPhaseName}).
-show: user                            # Optional. "user" (default) or "workflows" (subworkflow-only)
-phases:                               # Required. Array of phase file paths or subworkflow references
+show: user # Optional. "user" (default) or "workflows" (subworkflow-only)
+phases: # Required. Array of phase file paths or subworkflow references
   - ../_shared/scouting.md
   - ../_shared/planning.md
   - ./implementing.md
-  - { subworkflow: my-sub-workflow }  # Delegates to another workflow
+  - { subworkflow: my-sub-workflow } # Delegates to another workflow
 ```
 
 **Template variables** available in `initialMessage`:
+
 - `{workflowName}`, `{description}`, `{firstPhaseId}`, `{firstPhaseName}`, `{firstPhaseEmoji}`, `{firstPhaseProfiles}`
 
 **Optional workflow-level fields:**
+
 - `show: "workflows"` — makes the workflow invisible to `/workflow` command; only usable as a subworkflow
 - `loopable: false` — prevents looping (restarting from phase 0). Default is `true`.
 
@@ -84,14 +87,14 @@ phases:                               # Required. Array of phase file paths or s
 
 ```markdown
 ---
-id: my-phase-id          # Required. Unique within the workflow.
-name: My Phase           # Required. Display name.
-emoji: "🔍"              # Required. Single emoji.
-tools:                   # Optional. Exactly one of blacklist or whitelist.
+id: my-phase-id # Required. Unique within the workflow.
+name: My Phase # Required. Display name.
+emoji: "🔍" # Required. Single emoji.
+tools: # Optional. Exactly one of blacklist or whitelist.
   blacklist:
     - edit
     - write
-availableProfiles:       # Optional. Profiles the agent may delegate to.
+availableProfiles: # Optional. Profiles the agent may delegate to.
   - vertical-scout
   - horizontal-scout
 ---
@@ -105,6 +108,7 @@ They tell the agent WHAT to do and HOW to use subagents.
 ### Tool Configuration
 
 Each phase can restrict tools via `tools`:
+
 - **`blacklist`**: Block these specific tools. Everything else is allowed.
 - **`whitelist`**: Allow ONLY these tools. Everything else is blocked.
 - Cannot use both simultaneously.
@@ -156,6 +160,7 @@ This resolves `my-sub-workflow` by its **directory name** in the workflows root.
 ### When to Use Subworkflows
 
 Use subworkflows when:
+
 - Multiple top-level workflows share the same phase sequence (e.g., research → plan → implement → review)
 - You want to reuse a "loop" boundary (looping restarts the current scope)
 
@@ -182,6 +187,7 @@ When a phase calls `workflow_step loop`, the **current workflow scope** restarts
 4. If review is clean → `workflow_step next` → advance past the loop
 
 **Loop scope** is determined by the workflow boundary:
+
 - In a flat workflow, `loop` restarts the entire workflow
 - In a subworkflow reference, `loop` restarts only the subworkflow's phases
 
@@ -220,6 +226,7 @@ workflows/
 ## Common Patterns
 
 ### Read-Only Phase (Scouting/Planning/Reviewing)
+
 ```yaml
 # frontmatter
 tools:
@@ -227,9 +234,11 @@ tools:
     - edit
     - write
 ```
+
 The agent delegates to subagent profiles that have write tools. The orchestrator itself cannot modify files.
 
 ### Implementation Phase
+
 ```yaml
 # frontmatter
 tools:
@@ -239,16 +248,20 @@ tools:
 availableProfiles:
   - task-worker
 ```
+
 Same pattern — the orchestrator delegates to `task-worker` which has edit/write tools.
 
 ### Skip-if-Clean Phase
+
 In the phase instructions, include:
+
 ```
 If there are no issues, immediately perform `workflow_step next` to skip.
 Otherwise, fix issues and use `workflow_step loop` to re-review.
 ```
 
 ### Parallel Subagent Delegation
+
 ```
 Spawn 1-4 parallel subagents:
   delegate_to_subagents: [

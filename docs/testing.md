@@ -6,11 +6,11 @@ Test suite for pi-workflows, covering workflow configuration loading and validat
 
 ## Test Framework
 
-| | |
-|---|---|
-| **Runner** | [Vitest](https://vitest.dev/) v4.1.6 |
-| **Config** | `vitest.config.ts` — includes `src/__tests__/**/*.test.ts` |
-| **Test script** | `"test": "vitest run"` in `package.json` |
+|                 |                                                            |
+| --------------- | ---------------------------------------------------------- |
+| **Runner**      | [Vitest](https://vitest.dev/) v4.1.6                       |
+| **Config**      | `vitest.config.ts` — includes `src/__tests__/**/*.test.ts` |
+| **Test script** | `"test": "vitest run"` in `package.json`                   |
 
 Tests use Vitest's built-in `describe`/`it`/`expect` API. No additional assertion libraries are required.
 
@@ -20,22 +20,23 @@ Tests use Vitest's built-in `describe`/`it`/`expect` API. No additional assertio
 
 All tests live under `src/__tests__/`. There are 8 test files with **268 total test cases**.
 
-| File | Tests | What's Covered |
-|---|---|---|
-| `config.test.ts` | 84 | `resolveTemplate`, `validateWorkflowDefinition`, `detectCycles`, `findWorkflowByCommandName`, `getBlockedTools`, `getWhitelist`, `loadWorkflowFromDir`, `loadWorkflowsFromDir`, `loadWorkflows` |
-| `state.test.ts` | 36 | `createInitialState`, `advancePhase` (linear, enter-subworkflow, breakout, multi-level, auto-enter, two-subworkflows), `loopPhase` (scope isolation, loopable inheritance), `resolveActive`, `reconstructState`, `isActive` |
-| `prompts.test.ts` | 10 | `buildContextPrompt` (linear, nested, template resolution, profiles), `collectAllProfiles`, `getPreviousPhaseName`, default message constants |
-| `hooks.test.ts` | 43 | `updateStatus`, `handleToolCall`, `handleBeforeAgentStart`, `handleAgentEnd` (completion, cancellation, countdown widget, abort detection, no-UI fallback, edge cases), `clearActiveCountdown` |
-| `tool.test.ts` | 34 | `registerWorkflowTool` — `status`, `next`, `cancel`, `loop` actions; `renderCall`, `renderResult`; edge cases (stale definition, nested path, unknown action) |
-| `command.test.ts` | 28 | `registerWorkflowCommand` (start, validation, conflicts, tab completion, subworkflow rejection), `registerCancelWorkflowCommand` (cancel, persist, message) |
-| `renderers.test.ts` | 10 | `registerRenderers` — `workflow:context`, `workflow:complete`, `workflow:countdown` renderers |
-| `index.test.ts` | 23 | Extension entry point — event handler registration, `session_start`, `session_tree`, `tool_call`, `before_agent_start`, `agent_end`, `turn_end` handlers |
+| File                | Tests | What's Covered                                                                                                                                                                                                              |
+| ------------------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `config.test.ts`    | 84    | `resolveTemplate`, `validateWorkflowDefinition`, `detectCycles`, `findWorkflowByCommandName`, `getBlockedTools`, `getWhitelist`, `loadWorkflowFromDir`, `loadWorkflowsFromDir`, `loadWorkflows`                             |
+| `state.test.ts`     | 36    | `createInitialState`, `advancePhase` (linear, enter-subworkflow, breakout, multi-level, auto-enter, two-subworkflows), `loopPhase` (scope isolation, loopable inheritance), `resolveActive`, `reconstructState`, `isActive` |
+| `prompts.test.ts`   | 10    | `buildContextPrompt` (linear, nested, template resolution, profiles), `collectAllProfiles`, `getPreviousPhaseName`, default message constants                                                                               |
+| `hooks.test.ts`     | 43    | `updateStatus`, `handleToolCall`, `handleBeforeAgentStart`, `handleAgentEnd` (completion, cancellation, countdown widget, abort detection, no-UI fallback, edge cases), `clearActiveCountdown`                              |
+| `tool.test.ts`      | 34    | `registerWorkflowTool` — `status`, `next`, `cancel`, `loop` actions; `renderCall`, `renderResult`; edge cases (stale definition, nested path, unknown action)                                                               |
+| `command.test.ts`   | 28    | `registerWorkflowCommand` (start, validation, conflicts, tab completion, subworkflow rejection), `registerCancelWorkflowCommand` (cancel, persist, message)                                                                 |
+| `renderers.test.ts` | 10    | `registerRenderers` — `workflow:context`, `workflow:complete`, `workflow:countdown` renderers                                                                                                                               |
+| `index.test.ts`     | 23    | Extension entry point — event handler registration, `session_start`, `session_tree`, `tool_call`, `before_agent_start`, `agent_end`, `turn_end` handlers                                                                    |
 
 ### config.test.ts (84 tests)
 
 **`resolveTemplate`** — 4 tests covering placeholder replacement, unknown variables left as-is, multiple variables, and empty template.
 
 **`validateWorkflowDefinition`** — 24 tests covering:
+
 - Valid `show: "user"` workflow passes
 - Missing `commandName` / `initialMessage` on user-visible workflows → error
 - `show: "workflows"` (internal) workflows skip those required-field checks
@@ -52,6 +53,7 @@ All tests live under `src/__tests__/`. There are 8 test files with **268 total t
 - Missing `id`, `name`, `emoji`, or `instructions` on concrete phases → error
 
 **`detectCycles`** — 9 tests covering:
+
 - No subworkflow references → no cycles
 - A → B (no cycle), A → A (self-reference), A → B → A, A → B → C → A
 - DAG with multiple paths (A→B, A→C, B→D, C→D) → no cycles
@@ -64,6 +66,7 @@ All tests live under `src/__tests__/`. There are 8 test files with **268 total t
 **`getBlockedTools` / `getWhitelist`** — 6 tests covering blacklist extraction, whitelist extraction, no-tools fallback, and cross-exclusivity.
 
 **`loadWorkflowFromDir`** — 18 tests covering:
+
 - Missing `workflow.yaml` → null
 - Valid workflow with phases loaded from `.md` files
 - Tool config (blacklist/whitelist) parsing from frontmatter
@@ -119,6 +122,7 @@ Uses shared fixture definitions imported from `helpers/fixtures.ts` (see [Test H
 ### prompts.test.ts (10 tests)
 
 **`buildContextPrompt`** — 4 tests:
+
 - Linear workflow includes phase name, instructions, and progress (e.g. `1/2 phases`)
 - Nested workflow includes `[Workflow path:` breadcrumb line
 - All template variables resolved (no leftover `{varName}`)
@@ -263,13 +267,13 @@ Used by `hooks.test.ts`, `tool.test.ts`, `renderers.test.ts`, and `index.test.ts
 
 Provides factory functions and fixture data for constructing test `WorkflowDefinition`, `WorkflowState`, and `PhaseDefinition` objects. Exports are namespaced per test file to avoid collisions:
 
-| Export | Used By | Description |
-|---|---|---|
-| `STATE_PHASE_*`, `makeStateLinearDef`, `makeStateParentDef`, `makeStateSubDef`, `makeStateAllDefs` | `state.test.ts` | 3-phase linear, 2-phase sub, parent with sub ref |
-| `TOOL_PHASE_*`, `makeToolLinearDef`, `makeToolParentDef`, `makeToolSubDef`, `makeToolNoLoopDef`, `makeToolAllDefs`, `makeToolActiveState` | `tool.test.ts` | Linear, parent, sub, and no-loop definitions + active state builder |
-| `PROMPTS_PHASE_*`, `makePromptsLinearDef` | `prompts.test.ts` | 2-phase linear workflow for prompt tests |
-| `CMD_*`, `makeCommandDefs` | `command.test.ts` | User-visible and subworkflow-only command definitions |
-| `makeDefinition`, `makeActiveState` | `hooks.test.ts`, `index.test.ts` | Minimal single-workflow definition and state |
+| Export                                                                                                                                    | Used By                          | Description                                                         |
+| ----------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- | ------------------------------------------------------------------- |
+| `STATE_PHASE_*`, `makeStateLinearDef`, `makeStateParentDef`, `makeStateSubDef`, `makeStateAllDefs`                                        | `state.test.ts`                  | 3-phase linear, 2-phase sub, parent with sub ref                    |
+| `TOOL_PHASE_*`, `makeToolLinearDef`, `makeToolParentDef`, `makeToolSubDef`, `makeToolNoLoopDef`, `makeToolAllDefs`, `makeToolActiveState` | `tool.test.ts`                   | Linear, parent, sub, and no-loop definitions + active state builder |
+| `PROMPTS_PHASE_*`, `makePromptsLinearDef`                                                                                                 | `prompts.test.ts`                | 2-phase linear workflow for prompt tests                            |
+| `CMD_*`, `makeCommandDefs`                                                                                                                | `command.test.ts`                | User-visible and subworkflow-only command definitions               |
+| `makeDefinition`, `makeActiveState`                                                                                                       | `hooks.test.ts`, `index.test.ts` | Minimal single-workflow definition and state                        |
 
 ### Local Helpers
 
@@ -325,16 +329,16 @@ npx vitest run --coverage
 Vitest discovers tests via the `include` pattern in `vitest.config.ts` and enforces **90% coverage thresholds** across all metrics:
 
 ```typescript
-import { defineConfig } from 'vitest/config';
+import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
-    include: ['src/__tests__/**/*.test.ts'],
-    setupFiles: ['src/__tests__/setup.ts'],
+    include: ["src/__tests__/**/*.test.ts"],
+    setupFiles: ["src/__tests__/setup.ts"],
     coverage: {
-      provider: 'v8',
-      reporter: ['text', 'lcov'],
-      include: ['src/**/*.ts'],
-      exclude: ['src/__tests__/**', 'src/**/*.test.ts', 'src/**/setup.ts', 'src/**/helpers/**'],
+      provider: "v8",
+      reporter: ["text", "lcov"],
+      include: ["src/**/*.ts"],
+      exclude: ["src/__tests__/**", "src/**/*.test.ts", "src/**/setup.ts", "src/**/helpers/**"],
       thresholds: {
         statements: 90,
         branches: 90,
@@ -348,17 +352,17 @@ export default defineConfig({
 
 ### Current Coverage
 
-| File | Statements | Branches | Functions | Lines |
-|---|---|---|---|---|
-| **Overall** | 96.03% | 90.6% | 96.26% | 97.09% |
-| `command.ts` | 97.18% | 85.71% | 100% | 98.5% |
-| `hooks.ts` | 100% | 98.5% | 100% | 100% |
-| `index.ts` | 91.22% | 100% | 66.66% | 94.11% |
-| `prompts.ts` | 96.49% | 80.95% | 100% | 100% |
-| `state.ts` | 88.13% | 78.04% | 100% | 90.82% |
-| `tool.ts` | 97.24% | 92.06% | 100% | 97.19% |
-| `config/loading.ts` | 96.42% | 91.17% | 100% | 96.64% |
-| `config/validation.ts` | 99.17% | 97.11% | 100% | 100% |
+| File                   | Statements | Branches | Functions | Lines  |
+| ---------------------- | ---------- | -------- | --------- | ------ |
+| **Overall**            | 96.03%     | 90.6%    | 96.26%    | 97.09% |
+| `command.ts`           | 97.18%     | 85.71%   | 100%      | 98.5%  |
+| `hooks.ts`             | 100%       | 98.5%    | 100%      | 100%   |
+| `index.ts`             | 91.22%     | 100%     | 66.66%    | 94.11% |
+| `prompts.ts`           | 96.49%     | 80.95%   | 100%      | 100%   |
+| `state.ts`             | 88.13%     | 78.04%   | 100%      | 90.82% |
+| `tool.ts`              | 97.24%     | 92.06%   | 100%      | 97.19% |
+| `config/loading.ts`    | 96.42%     | 91.17%   | 100%      | 96.64% |
+| `config/validation.ts` | 99.17%     | 97.11%   | 100%      | 100%   |
 
 ---
 
