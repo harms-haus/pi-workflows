@@ -455,7 +455,7 @@ describe("workflow_step tool", () => {
       const { renderCall } = setupTool(null);
 
       const theme = {
-        fg: (color: string, text: string) => text,
+        fg: (_color: string, text: string) => text,
         bold: (text: string) => text,
       };
 

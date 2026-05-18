@@ -93,8 +93,8 @@ function handleStatus(
 /** Handle the "cancel" action: two-step confirmation then cancel. */
 function handleCancel(
   state: WorkflowState | null,
-  definitions: Record<string, WorkflowDefinition>,
-  getState: GetState,
+  _definitions: Record<string, WorkflowDefinition>,
+  _getState: GetState,
   setState: SetState,
   pi: ExtensionAPI,
   ctx: ExtensionContext,
@@ -136,8 +136,8 @@ function handleCancel(
 function handleNext(
   state: WorkflowState | null,
   definitions: Record<string, WorkflowDefinition>,
-  summary: string,
-  getState: GetState,
+  _summary: string,
+  _getState: GetState,
   setState: SetState,
   pi: ExtensionAPI,
   ctx: ExtensionContext,
@@ -219,8 +219,8 @@ function handleNext(
 function handleLoop(
   state: WorkflowState | null,
   definitions: Record<string, WorkflowDefinition>,
-  getState: GetState,
-  setState: SetState,
+  _getState: GetState,
+  _setState: SetState,
   pi: ExtensionAPI,
   ctx: ExtensionContext,
 ) {

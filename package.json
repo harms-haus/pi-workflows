@@ -5,7 +5,8 @@
   "type": "module",
   "main": "src/index.ts",
   "files": [
-    "src/**/*.{ts,js,map}",
+    "src/**/*.ts",
+    "!src/__tests__/**",
     "skills/",
     "docs/",
     "README.md",
@@ -25,6 +26,7 @@
       "./skills/workflow-generation"
     ]
   },
+  "author": "harms-haus",
   "keywords": [
     "pi-package",
     "workflow"
@@ -36,7 +38,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/",
     "format": "prettier --write src/",
-    "format:check": "prettier --check src/"
+    "format:check": "prettier --check src/",
+    "lint:fix": "eslint --fix src/"
   },
   "license": "MIT",
   "peerDependencies": {
@@ -48,11 +51,17 @@
     "typebox": "^1.1.24",
     "yaml": "^2.8.2"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/harms-haus/pi-workflows.git"
+  },
   "devDependencies": {
+    "@eslint/js": "^9.0.0",
     "@vitest/coverage-v8": "^4.1.6",
     "eslint": "^9.0.0",
     "eslint-config-prettier": "^10.1.8",
     "prettier": "^3.0.0",
+    "typescript": "^5.0.0",
     "typescript-eslint": "^8.0.0",
     "vitest": "^4.1.6"
   }

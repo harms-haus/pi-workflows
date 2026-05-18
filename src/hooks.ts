@@ -114,6 +114,7 @@ export function handleToolCall(
       }),
     };
   }
+  return undefined;
 }
 
 const DEFAULT_BLOCK_REASON =
