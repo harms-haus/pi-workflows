@@ -128,11 +128,44 @@ export function advancePhase(
   }
 
   // Case 4: Last phase in subworkflow — breakout to parent
+  // The subworkflow was the parent's last phase, so we may need to
+  // keep popping until we find a parent with a next phase or reach top-level completion.
   state.currentPath.pop();
-  const newTop = state.currentPath[state.currentPath.length - 1];
-  const newTopDef = definitions[newTop.workflowKey];
-  newTop.phaseIndex += 1;
   state.globalStepCount++;
+
+  // Loop: increment the parent's phase index and check if it has a next phase.
+  // If the parent is also exhausted, pop again and continue.
+  let newTop = state.currentPath[state.currentPath.length - 1];
+  let newTopDef: WorkflowDefinition | undefined = definitions[newTop.workflowKey];
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+  if (!newTopDef) {
+    console.warn(`[pi-workflows] Missing definition for '${newTop.workflowKey}' during breakout.`);
+    state.active = false;
+    state.completionNotified = false;
+    return { advanced: true, from: currentEntry.name, to: null };
+  }
+  newTop.phaseIndex += 1;
+
+  while (newTop.phaseIndex >= newTopDef.phases.length) {
+    // Parent has no more phases — check if top-level
+    if (state.currentPath.length === 1) {
+      state.active = false;
+      state.completionNotified = false;
+      return { advanced: true, from: currentEntry.name, to: null };
+    }
+    // Nested parent also exhausted — pop again and continue
+    state.currentPath.pop();
+    newTop = state.currentPath[state.currentPath.length - 1];
+    newTopDef = definitions[newTop.workflowKey];
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+    if (!newTopDef) {
+      console.warn(`[pi-workflows] Missing definition for '${newTop.workflowKey}' during breakout.`);
+      state.active = false;
+      state.completionNotified = false;
+      return { advanced: true, from: currentEntry.name, to: null };
+    }
+    newTop.phaseIndex += 1;
+  }
 
   const nextEntry = newTopDef.phases[newTop.phaseIndex];
   if (isSubworkflowRef(nextEntry)) {

@@ -595,3 +595,174 @@ describe("loopPhase — loopable isolation", () => {
     expect("error" in result).toBe(true);
   });
 });
+
+// ── advancePhase — breakout when subworkflow is parent's last phase ──
+
+describe("advancePhase — breakout when subworkflow is parent's last phase", () => {
+  // Parent whose last (and only trailing) phase is a subworkflow
+  const parentSubLast: WorkflowDefinition = {
+    name: "ParentSubLast",
+    commandName: "psl",
+    initialMessage: "Start",
+    phases: [
+      phase1,
+      { subworkflow: true, workflowKey: "sub", resolved: subDef },
+    ],
+  };
+  const pslDefs: Record<string, WorkflowDefinition> = {
+    psl: parentSubLast,
+    sub: subDef,
+  };
+
+  it("subworkflow as parent's last phase → breakout completes the workflow", () => {
+    const state = createInitialState("psl", "desc");
+
+    // Step 1: advance from phase1 → auto-enters sub → sub[0]
+    const r1 = advancePhase(state, pslDefs);
+    expect(r1.advanced).toBe(true);
+    expect(r1.from).toBe("Phase 1");
+    expect(r1.to).toBe("Sub Phase 1");
+    expect(state.currentPath).toHaveLength(2);
+
+    // Step 2: advance within sub → sub[1]
+    const r2 = advancePhase(state, pslDefs);
+    expect(r2.advanced).toBe(true);
+    expect(r2.from).toBe("Sub Phase 1");
+    expect(r2.to).toBe("Sub Phase 2");
+
+    // Step 3: breakout from sub, parent has no more phases → DONE
+    const r3 = advancePhase(state, pslDefs);
+    expect(r3.advanced).toBe(true);
+    expect(r3.from).toBe("Sub Phase 2");
+    expect(r3.to).toBeNull();
+    expect(state.active).toBe(false);
+    expect(state.currentPath).toHaveLength(1);
+    expect(state.currentPath[0].phaseIndex).toBe(2); // past end
+  });
+
+  it("parent whose only phase is a subworkflow → completes after subworkflow finishes", () => {
+    const parentOnlySub: WorkflowDefinition = {
+      name: "ParentOnlySub",
+      commandName: "pos",
+      initialMessage: "Start",
+      phases: [
+        { subworkflow: true, workflowKey: "sub", resolved: subDef },
+      ],
+    };
+    const posDefs: Record<string, WorkflowDefinition> = {
+      pos: parentOnlySub,
+      sub: subDef,
+    };
+
+    const state = createInitialState("pos", "desc");
+    // Phase 0 is a subworkflow ref — Case 1: auto-enter
+    // But first, we need to advance FROM the subworkflow ref. Actually,
+    // the initial state is at index 0 which is the subworkflow ref.
+    // advancePhase Case 1 handles this by pushing the sub.
+    // Wait — the initial state starts at index 0 which IS the subworkflow ref.
+    // Let me think: the state starts at {workflowKey: "pos", phaseIndex: 0}.
+    // Phase 0 of pos is a SubworkflowRef. So calling advancePhase will hit Case 1
+    // and enter the sub. Then we advance within sub, and on last phase of sub,
+    // we break out.
+    // Actually, Case 1 enters sub but it doesn't consume a step from the user's
+    // perspective — it's an auto-enter. Let's re-read Case 1.
+    // Case 1 is: if currentEntry is a subworkflowRef, push new segment and return.
+    // This means the user's first advance enters the sub. Let me simulate:
+
+    // First advance: current is subworkflow ref → Case 1 → enter sub[0]
+    const r1 = advancePhase(state, posDefs);
+    expect(r1.advanced).toBe(true);
+    expect(state.currentPath).toHaveLength(2);
+    expect(state.currentPath[1]).toEqual({ workflowKey: "sub", phaseIndex: 0 });
+
+    // Second advance: sub[0] → sub[1]
+    const r2 = advancePhase(state, posDefs);
+    expect(r2.advanced).toBe(true);
+    expect(r2.from).toBe("Sub Phase 1");
+    expect(r2.to).toBe("Sub Phase 2");
+
+    // Third advance: sub[1] is last → breakout. Parent has no more phases → DONE
+    const r3 = advancePhase(state, posDefs);
+    expect(r3.advanced).toBe(true);
+    expect(r3.from).toBe("Sub Phase 2");
+    expect(r3.to).toBeNull();
+    expect(state.active).toBe(false);
+  });
+});
+
+// ── advancePhase — multi-level breakout (nested last-phase subworkflows) ──
+
+describe("advancePhase — multi-level breakout", () => {
+  // grandchild: a tiny subworkflow with 1 phase
+  const grandchildDef: WorkflowDefinition = {
+    name: "Grandchild",
+    commandName: "gc",
+    initialMessage: "Start",
+    show: "workflows",
+    phases: [{ id: "gc1", name: "GC Phase 1", emoji: "🧒", instructions: "gc" }],
+  };
+
+  // child: its only/last phase is a subworkflow ref to grandchild
+  const childDef: WorkflowDefinition = {
+    name: "Child",
+    commandName: "child",
+    initialMessage: "Start",
+    show: "workflows",
+    phases: [
+      { subworkflow: true, workflowKey: "grandchild", resolved: grandchildDef },
+    ],
+  };
+
+  // grandparent: its only/last phase is a subworkflow ref to child
+  const grandparentDef: WorkflowDefinition = {
+    name: "Grandparent",
+    commandName: "gp",
+    initialMessage: "Start",
+    phases: [
+      phase1,
+      { subworkflow: true, workflowKey: "child", resolved: childDef },
+    ],
+  };
+
+  const nestedDefs: Record<string, WorkflowDefinition> = {
+    gp: grandparentDef,
+    child: childDef,
+    grandchild: grandchildDef,
+  };
+
+  it("grandchild → child → grandparent all have subworkflow as last phase → completes", () => {
+    const state = createInitialState("gp", "desc");
+
+    // Step 1: advance from phase1 → auto-enters child → child[0] (which is a subworkflow ref)
+    // But child[0] is a SubworkflowRef to grandchild.
+    // Case 2 or auto-enter handles this? Let's trace:
+    // advancePhase: top is gp, phaseIndex 0, entry is phase1 (normal phase)
+    // Not subworkflowRef (Case 1), not last phase (Case 2 check: 0 < 2-1=1 → yes)
+    // So Case 2: advance to index 1, which is subworkflowRef to child
+    // autoEnterSubworkflowRefs is called, which pushes child segment at [0]
+    // child's first phase is grandchild ref → recurse → pushes grandchild at [0]
+    // Returns "GC Phase 1"
+    const r1 = advancePhase(state, nestedDefs);
+    expect(r1.advanced).toBe(true);
+    expect(r1.from).toBe("Phase 1");
+    expect(r1.to).toBe("GC Phase 1");
+    expect(state.currentPath).toHaveLength(3);
+    expect(state.currentPath).toEqual([
+      { workflowKey: "gp", phaseIndex: 1 },
+      { workflowKey: "child", phaseIndex: 0 },
+      { workflowKey: "grandchild", phaseIndex: 0 },
+    ]);
+
+    // Step 2: advance from grandchild[0] (last phase of grandchild)
+    // → breakout to child. child has no more phases (grandchild was its last).
+    // → breakout to grandparent. grandparent has no more phases (child was its last).
+    // → DONE
+    const r2 = advancePhase(state, nestedDefs);
+    expect(r2.advanced).toBe(true);
+    expect(r2.from).toBe("GC Phase 1");
+    expect(r2.to).toBeNull();
+    expect(state.active).toBe(false);
+    expect(state.currentPath).toHaveLength(1);
+    expect(state.currentPath[0].phaseIndex).toBe(2); // past end of grandparent phases
+  });
+});
