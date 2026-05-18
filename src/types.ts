@@ -68,7 +68,9 @@ export type PhaseEntry = PhaseDefinition | SubworkflowReference;
 // ── Type Guards ──
 
 /** Returns true if the entry is a SubworkflowReference. */
-export function isSubworkflowRef(entry: PhaseEntry | undefined | null): entry is SubworkflowReference {
+export function isSubworkflowRef(
+  entry: PhaseEntry | undefined | null,
+): entry is SubworkflowReference {
   if (entry === undefined || entry === null) {
     return false;
   }

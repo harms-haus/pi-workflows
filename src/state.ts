@@ -159,7 +159,9 @@ export function advancePhase(
     newTopDef = definitions[newTop.workflowKey];
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if (!newTopDef) {
-      console.warn(`[pi-workflows] Missing definition for '${newTop.workflowKey}' during breakout.`);
+      console.warn(
+        `[pi-workflows] Missing definition for '${newTop.workflowKey}' during breakout.`,
+      );
       state.active = false;
       state.completionNotified = false;
       return { advanced: true, from: currentEntry.name, to: null };

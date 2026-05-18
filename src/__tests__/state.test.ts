@@ -604,10 +604,7 @@ describe("advancePhase — breakout when subworkflow is parent's last phase", ()
     name: "ParentSubLast",
     commandName: "psl",
     initialMessage: "Start",
-    phases: [
-      phase1,
-      { subworkflow: true, workflowKey: "sub", resolved: subDef },
-    ],
+    phases: [phase1, { subworkflow: true, workflowKey: "sub", resolved: subDef }],
   };
   const pslDefs: Record<string, WorkflowDefinition> = {
     psl: parentSubLast,
@@ -645,9 +642,7 @@ describe("advancePhase — breakout when subworkflow is parent's last phase", ()
       name: "ParentOnlySub",
       commandName: "pos",
       initialMessage: "Start",
-      phases: [
-        { subworkflow: true, workflowKey: "sub", resolved: subDef },
-      ],
+      phases: [{ subworkflow: true, workflowKey: "sub", resolved: subDef }],
     };
     const posDefs: Record<string, WorkflowDefinition> = {
       pos: parentOnlySub,
@@ -708,9 +703,7 @@ describe("advancePhase — multi-level breakout", () => {
     commandName: "child",
     initialMessage: "Start",
     show: "workflows",
-    phases: [
-      { subworkflow: true, workflowKey: "grandchild", resolved: grandchildDef },
-    ],
+    phases: [{ subworkflow: true, workflowKey: "grandchild", resolved: grandchildDef }],
   };
 
   // grandparent: its only/last phase is a subworkflow ref to child
@@ -718,10 +711,7 @@ describe("advancePhase — multi-level breakout", () => {
     name: "Grandparent",
     commandName: "gp",
     initialMessage: "Start",
-    phases: [
-      phase1,
-      { subworkflow: true, workflowKey: "child", resolved: childDef },
-    ],
+    phases: [phase1, { subworkflow: true, workflowKey: "child", resolved: childDef }],
   };
 
   const nestedDefs: Record<string, WorkflowDefinition> = {
