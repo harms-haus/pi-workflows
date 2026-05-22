@@ -54,9 +54,7 @@ export interface PhaseMetadata {
 function validateYamlObject(yamlContent: string, sourcePath: string): RawWorkflowYaml | null {
   const parsed: unknown = yamlParse(yamlContent);
   if (!parsed || typeof parsed !== "object") {
-    console.warn(
-      `[pi-workflows] Invalid workflow.yaml in ${sourcePath}: not a valid YAML object`,
-    );
+    console.warn(`[pi-workflows] Invalid workflow.yaml in ${sourcePath}: not a valid YAML object`);
     return null;
   }
   return parsed;
@@ -118,10 +116,7 @@ function setOptionalFields(raw: RawWorkflowYaml, target: ParsedWorkflow): void {
  * Parse a workflow.yaml content string and extract all fields.
  * Returns a ParsedWorkflow object with extracted fields, or null if invalid.
  */
-export function parseWorkflowYaml(
-  yamlContent: string,
-  sourcePath: string,
-): ParsedWorkflow | null {
+export function parseWorkflowYaml(yamlContent: string, sourcePath: string): ParsedWorkflow | null {
   const raw = validateYamlObject(yamlContent, sourcePath);
   if (!raw) return null;
 
@@ -175,10 +170,7 @@ function extractAvailableProfiles(profilesRaw: unknown): string[] | undefined {
  * Extract phase metadata from a parsed frontmatter/YAML object.
  * Returns a PhaseMetadata object, or null if required fields are missing.
  */
-export function extractPhaseMetadata(
-  phaseYaml: unknown,
-  phaseId: string,
-): PhaseMetadata | null {
+export function extractPhaseMetadata(phaseYaml: unknown, phaseId: string): PhaseMetadata | null {
   if (!phaseYaml || typeof phaseYaml !== "object") {
     console.warn(`[pi-workflows] Invalid frontmatter in phase ${phaseId}`);
     return null;
@@ -211,5 +203,3 @@ export function extractPhaseMetadata(
 
   return metadata;
 }
-
-

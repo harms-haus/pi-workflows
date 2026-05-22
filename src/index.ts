@@ -2,12 +2,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { WorkflowState, WorkflowDefinition } from "./types";
 import { loadWorkflows } from "./config";
 import { persistState, reconstructState } from "./state";
-import {
-  updateStatus,
-  handleToolCall,
-  handleBeforeAgentStart,
-  handleAgentEnd,
-} from "./hooks";
+import { updateStatus, handleToolCall, handleBeforeAgentStart, handleAgentEnd } from "./hooks";
 import { timerManager } from "./TimerManager";
 import { registerWorkflowTool } from "./tool";
 import { registerWorkflowCommand, registerCancelWorkflowCommand } from "./command";
@@ -44,7 +39,8 @@ export default function (pi: ExtensionAPI): void {
 
   /** Shared session initialisation used by session_start and session_tree. */
   function initSession(
-    ctx: Parameters<typeof reconstructState>[0] & Parameters<typeof updateStatus>[0] & { cwd: string },
+    ctx: Parameters<typeof reconstructState>[0] &
+      Parameters<typeof updateStatus>[0] & { cwd: string },
   ) {
     timerManager.clearAll();
     definitions = loadWorkflows(ctx.cwd);
@@ -53,11 +49,15 @@ export default function (pi: ExtensionAPI): void {
   }
 
   pi.on("session_start", (_event, ctx) => {
-    withStaleGuard(() => { initSession(ctx); });
+    withStaleGuard(() => {
+      initSession(ctx);
+    });
   });
 
   pi.on("session_tree", (_event, ctx) => {
-    withStaleGuard(() => { initSession(ctx); });
+    withStaleGuard(() => {
+      initSession(ctx);
+    });
   });
 
   pi.on("tool_call", (event, _ctx) => {
@@ -86,7 +86,9 @@ export default function (pi: ExtensionAPI): void {
   });
 
   pi.on("turn_end", (_event, ctx) => {
-    withStaleGuard(() => { updateStatus(ctx, state, definitions); });
+    withStaleGuard(() => {
+      updateStatus(ctx, state, definitions);
+    });
   });
 
   registerWorkflowTool(pi, getState, getDefinitions, setState);

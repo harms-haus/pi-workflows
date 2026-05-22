@@ -1,10 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import {
-  handleAgentEnd,
-  updateStatus,
-  handleToolCall,
-  handleBeforeAgentStart,
-} from "../hooks";
+import { handleAgentEnd, updateStatus, handleToolCall, handleBeforeAgentStart } from "../hooks";
 import { timerManager } from "../TimerManager";
 import { createMockAPI, createMockContext } from "./helpers/mocks";
 import { makeDefinition, makeActiveState } from "./helpers/fixtures";

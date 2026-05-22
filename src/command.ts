@@ -165,7 +165,7 @@ export function registerCancelWorkflowCommand(
       // Jump straight to DONE state
       const doneState: WorkflowState = {
         ...state,
-        currentPath: state.currentPath.map(seg => ({ ...seg })),
+        currentPath: state.currentPath.map((seg) => ({ ...seg })),
         active: false,
         cancelled: true,
         completionNotified: false,

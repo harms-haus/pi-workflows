@@ -81,11 +81,36 @@ export function makeWorkflowState(overrides: Partial<WorkflowState> = {}): Workf
 // ── Shared Phase Instances ──
 // Used by both STATE_* and TOOL_* families (identical definitions).
 
-const PHASE_1: PhaseDefinition = { id: "p1", name: "Phase 1", emoji: "1️⃣", instructions: "Do phase 1" };
-const PHASE_2: PhaseDefinition = { id: "p2", name: "Phase 2", emoji: "2️⃣", instructions: "Do phase 2" };
-const PHASE_3: PhaseDefinition = { id: "p3", name: "Phase 3", emoji: "3️⃣", instructions: "Do phase 3" };
-const SUB_PHASE_1: PhaseDefinition = { id: "sp1", name: "Sub Phase 1", emoji: "🔨", instructions: "Build" };
-const SUB_PHASE_2: PhaseDefinition = { id: "sp2", name: "Sub Phase 2", emoji: "👁️", instructions: "Review" };
+const PHASE_1: PhaseDefinition = {
+  id: "p1",
+  name: "Phase 1",
+  emoji: "1️⃣",
+  instructions: "Do phase 1",
+};
+const PHASE_2: PhaseDefinition = {
+  id: "p2",
+  name: "Phase 2",
+  emoji: "2️⃣",
+  instructions: "Do phase 2",
+};
+const PHASE_3: PhaseDefinition = {
+  id: "p3",
+  name: "Phase 3",
+  emoji: "3️⃣",
+  instructions: "Do phase 3",
+};
+const SUB_PHASE_1: PhaseDefinition = {
+  id: "sp1",
+  name: "Sub Phase 1",
+  emoji: "🔨",
+  instructions: "Build",
+};
+const SUB_PHASE_2: PhaseDefinition = {
+  id: "sp2",
+  name: "Sub Phase 2",
+  emoji: "👁️",
+  instructions: "Review",
+};
 
 // ── Shared Workflow Builders ──
 
@@ -117,11 +142,7 @@ function _makeParentDef(): WorkflowDefinition {
     name: "Parent",
     commandName: "par",
     initialMessage: "Start",
-    phases: [
-      PHASE_1,
-      { subworkflow: true, workflowKey: "sub", resolved: subDef },
-      PHASE_3,
-    ],
+    phases: [PHASE_1, { subworkflow: true, workflowKey: "sub", resolved: subDef }, PHASE_3],
   };
 }
 

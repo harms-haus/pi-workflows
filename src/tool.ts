@@ -9,7 +9,14 @@ import type {
   GetDefinitions,
   WorkflowDefinition,
 } from "./types";
-import { advancePhase, persistState, resolveActive, isActive, loopPhase, cloneState } from "./state";
+import {
+  advancePhase,
+  persistState,
+  resolveActive,
+  isActive,
+  loopPhase,
+  cloneState,
+} from "./state";
 
 // ── Result Types ──
 

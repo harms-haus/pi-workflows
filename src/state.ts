@@ -111,7 +111,9 @@ export function advancePhase(
     const subDef = definitions[currentEntry.workflowKey];
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if (!subDef) {
-      console.warn(`[pi-workflows] Missing definition for subworkflow '${currentEntry.workflowKey}' during advance.`);
+      console.warn(
+        `[pi-workflows] Missing definition for subworkflow '${currentEntry.workflowKey}' during advance.`,
+      );
       s.active = false;
       s.completionNotified = false;
       return { advanced: true, from: phaseEntryName(currentEntry), to: null, newState: s };
@@ -364,8 +366,7 @@ function isValidFields(d: Record<string, unknown>): boolean {
   if (typeof d.globalStepCount !== "number") return false;
   if (typeof d.startedAt !== "number") return false;
   if (d.taskId !== undefined && typeof d.taskId !== "string") return false;
-  if (d.completionNotified !== undefined && typeof d.completionNotified !== "boolean")
-    return false;
+  if (d.completionNotified !== undefined && typeof d.completionNotified !== "boolean") return false;
   if (d.cancelled !== undefined && typeof d.cancelled !== "boolean") return false;
   return true;
 }

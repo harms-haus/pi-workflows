@@ -14,11 +14,7 @@ function createTextRenderer(
   colorKey: ThemeColor,
   opts: { bold?: boolean; staticContent?: string } = {},
 ) {
-  return (
-    message: { content: unknown },
-    _options: unknown,
-    theme: Theme,
-  ) => {
+  return (message: { content: unknown }, _options: unknown, theme: Theme) => {
     const raw = typeof message.content === "string" ? message.content : "";
     const content = opts.staticContent ?? raw;
     const styledContent = opts.bold ? theme.bold(content) : content;
@@ -46,8 +42,5 @@ export function registerRenderers(pi: ExtensionAPI): void {
   );
 
   // Countdown shown during the grace period before auto-continue
-  pi.registerMessageRenderer(
-    "workflow:countdown",
-    createTextRenderer("⏳ ", "dim"),
-  );
+  pi.registerMessageRenderer("workflow:countdown", createTextRenderer("⏳ ", "dim"));
 }

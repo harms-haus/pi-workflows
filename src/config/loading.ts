@@ -5,7 +5,11 @@ import type { WorkflowDefinition, PhaseEntry } from "../types";
 import { validateWorkflowDefinition } from "./validation";
 import { parseWorkflowYaml } from "./loading-parse";
 import { checkPathSafety, loadPhaseFromMarkdown } from "./loading-phases";
-import { removeCycles, resolveSubworkflowRefs, checkDuplicateCommandNames } from "./loading-resolve";
+import {
+  removeCycles,
+  resolveSubworkflowRefs,
+  checkDuplicateCommandNames,
+} from "./loading-resolve";
 
 // ── Lookup ──
 

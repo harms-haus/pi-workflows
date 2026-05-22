@@ -347,7 +347,12 @@ describe("buildContextPrompt — nested progress with SubworkflowRef", () => {
       nextPhase,
       breadcrumb: [
         { workflowKey: "parent", name: parentDef.name, phaseName: parentDef.name, emoji: "" },
-        { workflowKey: "sub", name: subDef.name, phaseName: subPhase1.name, emoji: subPhase1.emoji },
+        {
+          workflowKey: "sub",
+          name: subDef.name,
+          phaseName: subPhase1.name,
+          emoji: subPhase1.emoji,
+        },
       ],
     };
 
@@ -388,10 +393,7 @@ describe("collectAllProfiles — unresolved subworkflow ref", () => {
       name: "Parent",
       commandName: "par",
       initialMessage: "Start",
-      phases: [
-        phaseWithProfiles,
-        { subworkflow: true, workflowKey: "missing", resolved: null },
-      ],
+      phases: [phaseWithProfiles, { subworkflow: true, workflowKey: "missing", resolved: null }],
     };
     const active = makeActive(parentDef);
     const prompt = buildContextPrompt(active);

@@ -908,10 +908,7 @@ describe("advancePhase — missing definition guards", () => {
       name: "Parent",
       commandName: "par",
       initialMessage: "Start",
-      phases: [
-        phase1,
-        { subworkflow: true, workflowKey: "nonexistent", resolved: null },
-      ],
+      phases: [phase1, { subworkflow: true, workflowKey: "nonexistent", resolved: null }],
     };
     const defs: Record<string, WorkflowDefinition> = { pms: parentWithMissingSub };
     const state0 = createInitialState("pms", "desc");
@@ -1256,10 +1253,7 @@ describe("resolveActive — subworkflow ref as current entry", () => {
       name: "Parent",
       commandName: "par",
       initialMessage: "Start",
-      phases: [
-        { subworkflow: true, workflowKey: "sub", resolved: subDef },
-        phase2,
-      ],
+      phases: [{ subworkflow: true, workflowKey: "sub", resolved: subDef }, phase2],
     };
     const defs: Record<string, WorkflowDefinition> = {
       pws: parentWithSub,
@@ -1314,18 +1308,14 @@ describe("resolveActive — subworkflow ref as current entry", () => {
       name: "Parent",
       commandName: "par",
       initialMessage: "Start",
-      phases: [
-        { subworkflow: true, workflowKey: "empty-sub", resolved: emptySubDef },
-      ],
+      phases: [{ subworkflow: true, workflowKey: "empty-sub", resolved: emptySubDef }],
     };
     const defs: Record<string, WorkflowDefinition> = { par: parentDef, "empty-sub": emptySubDef };
     const state = createInitialState("par", "desc");
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const result = resolveActive(state, defs);
     expect(result).toBeNull();
-    expect(warnSpy).toHaveBeenCalledWith(
-      expect.stringContaining("Could not resolve first phase"),
-    );
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("Could not resolve first phase"));
     warnSpy.mockRestore();
   });
 });

@@ -370,10 +370,7 @@ describe("registerWorkflowCommand", () => {
 
       await handler("nonexistent some desc", ctx);
 
-      expect(ctx.ui.notify).toHaveBeenCalledWith(
-        expect.stringContaining("(none)"),
-        "error",
-      );
+      expect(ctx.ui.notify).toHaveBeenCalledWith(expect.stringContaining("(none)"), "error");
     });
   });
 
@@ -420,10 +417,7 @@ describe("registerWorkflowCommand", () => {
 
       await handler("", ctx);
 
-      expect(ctx.ui.notify).toHaveBeenCalledWith(
-        expect.stringContaining("noshow"),
-        "info",
-      );
+      expect(ctx.ui.notify).toHaveBeenCalledWith(expect.stringContaining("noshow"), "info");
     });
   });
 
