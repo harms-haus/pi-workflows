@@ -30,6 +30,7 @@ function setupTool(state: WorkflowState | null) {
   type ToolResult = {
     content: Array<{ type: string; text: string }>;
     details: Record<string, unknown>;
+    resultType?: string;
   };
   const execute = toolConfig.execute as (
     toolCallId: string,
@@ -423,6 +424,7 @@ describe("workflow_step tool", () => {
       ) => Promise<{
         content: Array<{ type: string; text: string }>;
         details: Record<string, unknown>;
+        resultType?: string;
       }>;
 
       const result = await execute("call-1", { action: "loop" }, undefined, undefined, ctx);
@@ -481,6 +483,7 @@ describe("workflow_step tool", () => {
       const result = {
         content: [{ type: "text" as const, text: "⚠️ Something went wrong" }],
         details: {},
+        resultType: "error" as const,
       };
 
       const component = renderResult(result, {}, theme);
@@ -495,6 +498,7 @@ describe("workflow_step tool", () => {
       const result = {
         content: [{ type: "text" as const, text: "Error: something broke" }],
         details: {},
+        resultType: "error" as const,
       };
 
       const component = renderResult(result, {}, theme);
@@ -509,6 +513,7 @@ describe("workflow_step tool", () => {
       const result = {
         content: [{ type: "text" as const, text: "Could not advance: Phase 1" }],
         details: {},
+        resultType: "error" as const,
       };
 
       const component = renderResult(result, {}, theme);
@@ -517,26 +522,13 @@ describe("workflow_step tool", () => {
       expect(rendered).toContain("Could not advance");
     });
 
-    it("renders 'Unknown action' prefix results as error", () => {
-      const { renderResult } = setupTool(null);
-
-      const result = {
-        content: [{ type: "text" as const, text: "Unknown action: foo" }],
-        details: {},
-      };
-
-      const component = renderResult(result, {}, theme);
-      expect(component).toBeInstanceOf(Text);
-      const rendered = component.render(80);
-      expect(rendered).toContain("Unknown action");
-    });
-
     it("renders 'not found' containing results as error", () => {
       const { renderResult } = setupTool(null);
 
       const result = {
         content: [{ type: "text" as const, text: "Workflow definition 'foo' not found." }],
         details: {},
+        resultType: "error" as const,
       };
 
       const component = renderResult(result, {}, theme);
@@ -553,6 +545,7 @@ describe("workflow_step tool", () => {
           { type: "text" as const, text: "⚠️ **Confirm cancellation** of workflow?\nCall again." },
         ],
         details: { cancelPending: true },
+        resultType: "cancel" as const,
       };
 
       const component = renderResult(result, {}, theme);
@@ -567,6 +560,7 @@ describe("workflow_step tool", () => {
       const result = {
         content: [{ type: "text" as const, text: 'Workflow cancelled: "test"' }],
         details: { cancelled: true },
+        resultType: "cancel" as const,
       };
 
       const component = renderResult(result, {}, theme);
@@ -586,6 +580,7 @@ describe("workflow_step tool", () => {
           },
         ],
         details: { advanced: true, to: "DONE" },
+        resultType: "complete" as const,
       };
 
       const component = renderResult(result, {}, theme);
@@ -642,25 +637,6 @@ describe("workflow_step tool", () => {
 
       const component = renderResult(result, {}, theme);
       expect(component).toBeInstanceOf(Container);
-    });
-  });
-
-  // ── Default Action (unknown action) ──
-
-  describe("unknown action", () => {
-    it("returns unknown action message for invalid action", async () => {
-      const { execute, ctx } = setupTool(null);
-
-      // Cast to bypass type safety — testing the default branch
-      const result = await execute(
-        "call-1",
-        { action: "unknown_action" },
-        undefined,
-        undefined,
-        ctx,
-      );
-
-      expect(resultText(result)).toContain("Unknown action");
     });
   });
 });

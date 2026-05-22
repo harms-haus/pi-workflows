@@ -33,6 +33,14 @@ export function createInitialState(workflowKey: string, description: string): Wo
 
 // ── Helpers ──
 
+/** Deep-clone a WorkflowState (copies the mutable currentPath array with new segment objects). */
+export function cloneState(state: WorkflowState): WorkflowState {
+  return {
+    ...state,
+    currentPath: state.currentPath.map((s) => ({ ...s })),
+  };
+}
+
 /** Get a display name from a PhaseEntry (handles both PhaseDefinition and SubworkflowReference). */
 export function phaseEntryName(entry: PhaseEntry): string {
   return isSubworkflowRef(entry) ? (entry.resolved?.name ?? entry.workflowKey) : entry.name;
@@ -40,24 +48,26 @@ export function phaseEntryName(entry: PhaseEntry): string {
 
 /**
  * Auto-enter one or more nested SubworkflowRefs until a concrete PhaseDefinition is reached.
- * Pushes segments onto state.currentPath and returns the first concrete phase name,
+ * Returns a new state with segments pushed onto currentPath and the first concrete phase name,
  * or null if the subworkflow chain cannot be resolved.
+ * The original state is not mutated.
  */
 export function autoEnterSubworkflowRefs(
   state: WorkflowState,
   entry: SubworkflowReference,
-): string | null {
-  if (!entry.resolved) return null;
+): { phaseName: string | null; newState: WorkflowState } {
+  if (!entry.resolved) return { phaseName: null, newState: state };
 
-  state.currentPath.push({ workflowKey: entry.workflowKey, phaseIndex: 0 });
+  const cloned = cloneState(state);
+  cloned.currentPath.push({ workflowKey: entry.workflowKey, phaseIndex: 0 });
 
   const firstEntry = entry.resolved.phases[0];
 
   if (isSubworkflowRef(firstEntry)) {
-    return autoEnterSubworkflowRefs(state, firstEntry);
+    return autoEnterSubworkflowRefs(cloned, firstEntry);
   }
 
-  return firstEntry.name;
+  return { phaseName: firstEntry.name, newState: cloned };
 }
 
 /**
@@ -81,12 +91,14 @@ export function resolveFirstPhase(phases: PhaseEntry[]): PhaseDefinition | null 
  * Advance to the next phase using stack-based navigation.
  * Handles subworkflow entry, normal advancement, subworkflow breakout,
  * and top-level completion.
+ * Returns a new state object — the original state is not mutated.
  */
 export function advancePhase(
   state: WorkflowState,
   definitions: Record<string, WorkflowDefinition>,
-): { advanced: boolean; from: string; to: string | null } {
-  const top = state.currentPath[state.currentPath.length - 1];
+): { advanced: true; from: string; to: string | null; newState: WorkflowState } {
+  const s = cloneState(state);
+  const top = s.currentPath[s.currentPath.length - 1];
 
   const topDef = definitions[top.workflowKey];
 
@@ -94,91 +106,100 @@ export function advancePhase(
 
   // Case 1: Entering a subworkflow
   if (isSubworkflowRef(currentEntry)) {
-    state.currentPath.push({ workflowKey: currentEntry.workflowKey, phaseIndex: 0 });
-    state.globalStepCount++;
+    s.currentPath.push({ workflowKey: currentEntry.workflowKey, phaseIndex: 0 });
+    s.globalStepCount++;
     const subDef = definitions[currentEntry.workflowKey];
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+    if (!subDef) {
+      console.warn(`[pi-workflows] Missing definition for subworkflow '${currentEntry.workflowKey}' during advance.`);
+      s.active = false;
+      s.completionNotified = false;
+      return { advanced: true, from: phaseEntryName(currentEntry), to: null, newState: s };
+    }
     const firstPhaseName = subDef.phases[0]
       ? phaseEntryName(subDef.phases[0])
       : currentEntry.workflowKey;
-    return { advanced: true, from: phaseEntryName(currentEntry), to: firstPhaseName };
+    return { advanced: true, from: phaseEntryName(currentEntry), to: firstPhaseName, newState: s };
   }
 
   // Case 2: Normal phase, not the last one — advance within current scope
   if (top.phaseIndex < topDef.phases.length - 1) {
     top.phaseIndex += 1;
-    state.globalStepCount++;
+    s.globalStepCount++;
     const nextEntry = topDef.phases[top.phaseIndex];
     if (isSubworkflowRef(nextEntry)) {
-      const concreteName = autoEnterSubworkflowRefs(state, nextEntry);
+      const { phaseName: concreteName, newState: entered } = autoEnterSubworkflowRefs(s, nextEntry);
       return {
         advanced: true,
         from: currentEntry.name,
         to: concreteName ?? phaseEntryName(nextEntry),
+        newState: entered,
       };
     }
-    return { advanced: true, from: currentEntry.name, to: phaseEntryName(nextEntry) };
+    return { advanced: true, from: currentEntry.name, to: phaseEntryName(nextEntry), newState: s };
   }
 
   // Case 3: Last phase in current scope — top-level done
-  if (state.currentPath.length === 1) {
-    state.active = false;
-    state.completionNotified = false;
-    state.globalStepCount++;
-    return { advanced: true, from: currentEntry.name, to: null };
+  if (s.currentPath.length === 1) {
+    s.active = false;
+    s.completionNotified = false;
+    s.globalStepCount++;
+    return { advanced: true, from: currentEntry.name, to: null, newState: s };
   }
 
   // Case 4: Last phase in subworkflow — breakout to parent
   // The subworkflow was the parent's last phase, so we may need to
   // keep popping until we find a parent with a next phase or reach top-level completion.
-  state.currentPath.pop();
-  state.globalStepCount++;
+  s.currentPath.pop();
+  s.globalStepCount++;
 
   // Loop: increment the parent's phase index and check if it has a next phase.
   // If the parent is also exhausted, pop again and continue.
-  let newTop = state.currentPath[state.currentPath.length - 1];
+  let newTop = s.currentPath[s.currentPath.length - 1];
   let newTopDef: WorkflowDefinition | undefined = definitions[newTop.workflowKey];
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   if (!newTopDef) {
     console.warn(`[pi-workflows] Missing definition for '${newTop.workflowKey}' during breakout.`);
-    state.active = false;
-    state.completionNotified = false;
-    return { advanced: true, from: currentEntry.name, to: null };
+    s.active = false;
+    s.completionNotified = false;
+    return { advanced: true, from: currentEntry.name, to: null, newState: s };
   }
   newTop.phaseIndex += 1;
 
   while (newTop.phaseIndex >= newTopDef.phases.length) {
     // Parent has no more phases — check if top-level
-    if (state.currentPath.length === 1) {
-      state.active = false;
-      state.completionNotified = false;
-      return { advanced: true, from: currentEntry.name, to: null };
+    if (s.currentPath.length === 1) {
+      s.active = false;
+      s.completionNotified = false;
+      return { advanced: true, from: currentEntry.name, to: null, newState: s };
     }
     // Nested parent also exhausted — pop again and continue
-    state.currentPath.pop();
-    newTop = state.currentPath[state.currentPath.length - 1];
+    s.currentPath.pop();
+    newTop = s.currentPath[s.currentPath.length - 1];
     newTopDef = definitions[newTop.workflowKey];
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if (!newTopDef) {
       console.warn(
         `[pi-workflows] Missing definition for '${newTop.workflowKey}' during breakout.`,
       );
-      state.active = false;
-      state.completionNotified = false;
-      return { advanced: true, from: currentEntry.name, to: null };
+      s.active = false;
+      s.completionNotified = false;
+      return { advanced: true, from: currentEntry.name, to: null, newState: s };
     }
     newTop.phaseIndex += 1;
   }
 
   const nextEntry = newTopDef.phases[newTop.phaseIndex];
   if (isSubworkflowRef(nextEntry)) {
-    const concreteName = autoEnterSubworkflowRefs(state, nextEntry);
+    const { phaseName: concreteName, newState: entered } = autoEnterSubworkflowRefs(s, nextEntry);
     return {
       advanced: true,
       from: currentEntry.name,
       to: concreteName ?? phaseEntryName(nextEntry),
+      newState: entered,
     };
   }
-  return { advanced: true, from: currentEntry.name, to: phaseEntryName(nextEntry) };
+  return { advanced: true, from: currentEntry.name, to: phaseEntryName(nextEntry), newState: s };
 }
 
 // ── Loop Phase ──
@@ -186,24 +207,29 @@ export function advancePhase(
 /**
  * Loop (restart) the current innermost workflow from phase 0.
  * Respects the workflow's `loopable` setting.
+ * Returns a new state object — the original state is not mutated.
  */
 export function loopPhase(
   state: WorkflowState,
   definitions: Record<string, WorkflowDefinition>,
-): { looped: boolean; to: string } | { error: string } {
+): { looped: true; to: string; newState: WorkflowState } | { looped: false; error: string } {
   const top = state.currentPath[state.currentPath.length - 1];
   const topDef = definitions[top.workflowKey];
 
   if (topDef.loopable === false) {
-    return { error: "Looping is disabled for this workflow." };
+    return { looped: false, error: "Looping is disabled for this workflow." };
   }
 
-  top.phaseIndex = 0;
-  state.globalStepCount++;
+  const s = cloneState(state);
+  s.currentPath[s.currentPath.length - 1] = {
+    ...s.currentPath[s.currentPath.length - 1],
+    phaseIndex: 0,
+  };
+  s.globalStepCount++;
 
   const firstEntry = topDef.phases[0];
   const firstPhaseName = phaseEntryName(firstEntry);
-  return { looped: true, to: firstPhaseName };
+  return { looped: true, to: firstPhaseName, newState: s };
 }
 
 // ── Active Workflow Resolution ──
@@ -311,16 +337,13 @@ function migrateStateData(data: Record<string, unknown>): void {
   }
 }
 
-/**
- * Validate that reconstructed state has a valid currentPath.
- * Returns true if valid, false if the state should be discarded.
- */
-function validateReconstructedState(data: Record<string, unknown>): boolean {
-  if (!Array.isArray(data.currentPath) || (data.currentPath as unknown[]).length === 0) {
+/** Validate that each segment in currentPath has the correct shape. */
+function isValidPath(currentPath: unknown): currentPath is WorkflowState["currentPath"] {
+  if (!Array.isArray(currentPath) || currentPath.length === 0) {
     console.warn("[pi-workflows] Invalid persisted state: empty currentPath. Discarding.");
     return false;
   }
-  for (const seg of data.currentPath as Array<unknown>) {
+  for (const seg of currentPath) {
     if (
       typeof seg !== "object" ||
       seg === null ||
@@ -332,6 +355,30 @@ function validateReconstructedState(data: Record<string, unknown>): boolean {
     }
   }
   return true;
+}
+
+/** Validate required and optional scalar fields on reconstructed state. */
+function isValidFields(d: Record<string, unknown>): boolean {
+  if (typeof d.active !== "boolean") return false;
+  if (typeof d.workflowKey !== "string") return false;
+  if (typeof d.globalStepCount !== "number") return false;
+  if (typeof d.startedAt !== "number") return false;
+  if (d.taskId !== undefined && typeof d.taskId !== "string") return false;
+  if (d.completionNotified !== undefined && typeof d.completionNotified !== "boolean")
+    return false;
+  if (d.cancelled !== undefined && typeof d.cancelled !== "boolean") return false;
+  return true;
+}
+
+/**
+ * Validate that reconstructed state has all required fields with correct types.
+ * Acts as a type guard so the caller can safely use the value as WorkflowState.
+ * Returns true if valid, false if the state should be discarded.
+ */
+function validateReconstructedState(data: unknown): data is WorkflowState {
+  if (typeof data !== "object" || data === null) return false;
+  const d = data as Record<string, unknown>;
+  return isValidPath(d.currentPath) && isValidFields(d);
 }
 
 /**
@@ -350,7 +397,7 @@ export function reconstructState(ctx: {
       const data = { ...rawData };
       migrateStateData(data);
       if (!validateReconstructedState(data)) return null;
-      return data as unknown as WorkflowState;
+      return data;
     }
   }
   return null;

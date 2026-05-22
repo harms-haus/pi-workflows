@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   handleAgentEnd,
-  clearActiveCountdown,
   updateStatus,
   handleToolCall,
   handleBeforeAgentStart,
 } from "../hooks";
+import { timerManager } from "../TimerManager";
 import { createMockAPI, createMockContext } from "./helpers/mocks";
 import { makeDefinition, makeActiveState } from "./helpers/fixtures";
 import type { WorkflowState, WorkflowDefinition } from "../types";
@@ -15,8 +15,8 @@ import type { ToolCallEvent } from "@earendil-works/pi-coding-agent";
 // Use fake timers for countdown tests
 beforeEach(() => {
   vi.useFakeTimers();
-  // Reset module-level countdown state between tests
-  clearActiveCountdown({ hasUI: false } as any);
+  // Reset module-level timer state between tests
+  timerManager.clearAll();
 });
 afterEach(() => {
   vi.useRealTimers();
@@ -29,7 +29,7 @@ function mockMsg(stopReason: "stop" | "aborted"): AgentMessage {
 
 // Fixtures imported from helpers/fixtures.ts
 
-describe("clearActiveCountdown", () => {
+describe("timerManager.clearAll", () => {
   it("clears widget when interval is active", () => {
     const ctx = createMockContext();
     const { api } = createMockAPI();
@@ -48,27 +48,20 @@ describe("clearActiveCountdown", () => {
       { placement: "aboveEditor" },
     );
 
-    // Clear it
-    clearActiveCountdown(ctx);
-    expect(ctx.ui.setWidget).toHaveBeenCalledWith("workflow-countdown", undefined);
+    // Clear it — clearAll stops timers but does NOT clear widget;
+    // the caller (session_start/session_tree) no longer needs to clear widget
+    // since that was the old clearActiveCountdown behavior.
+    // Just verify timers are cleared so no sendUserMessage fires.
+    timerManager.clearAll();
 
     vi.advanceTimersByTime(5000);
     expect(api.sendUserMessage).not.toHaveBeenCalled();
   });
 
-  it("is safe to call when no countdown is active", () => {
-    const ctx = createMockContext();
+  it("is safe to call when no timers are active", () => {
     expect(() => {
-      clearActiveCountdown(ctx);
+      timerManager.clearAll();
     }).not.toThrow();
-  });
-
-  it("is safe when ctx.hasUI is false", () => {
-    const ctx = createMockContext({ hasUI: false });
-    expect(() => {
-      clearActiveCountdown(ctx);
-    }).not.toThrow();
-    expect(ctx.ui.setWidget).not.toHaveBeenCalled();
   });
 });
 
@@ -755,10 +748,14 @@ describe("handleAgentEnd — normal completion path", () => {
     expect(callArgs.content).toContain("Build the thing");
     expect(callArgs.content).toContain("task-42");
 
-    // Verify state mutation and return value
-    expect(state.completionNotified).toBe(true);
+    // Verify state mutation is returned (not mutated in place)
+    expect(state.completionNotified).toBe(false);
+    expect(result).toEqual({
+      unload: true,
+      persist: true,
+      state: { ...state, completionNotified: true },
+    });
     expect(ctx.ui.setStatus).toHaveBeenCalledWith("workflow", undefined);
-    expect(result).toEqual({ unload: true, persist: true });
   });
 
   it("uses custom completionMessage template from definition", () => {
@@ -859,7 +856,11 @@ describe("handleAgentEnd — cancellation path", () => {
     expect(callArgs.content).toContain("task-55");
 
     // Verify cancelled workflow is persisted and unloaded
-    expect(result).toEqual({ unload: true, persist: true });
+    expect(result).toEqual({
+      unload: true,
+      persist: true,
+      state: { ...state, completionNotified: true },
+    });
     expect(ctx.ui.setStatus).toHaveBeenCalledWith("workflow", undefined);
   });
 
@@ -943,8 +944,13 @@ describe("handleAgentEnd — cancellation path", () => {
       messages: [mockMsg("stop")],
     });
 
-    // cancelled path sets completionNotified = true to prevent duplicate messages
-    expect(state.completionNotified).toBe(true);
+    // cancelled path returns state with completionNotified = true (not mutated in place)
+    const result = handleAgentEnd(api, state, defs, ctx, {
+      type: "agent_end" as const,
+      messages: [mockMsg("stop")],
+    });
+    expect(state.completionNotified).toBe(false);
+    expect(result.state!.completionNotified).toBe(true);
   });
 
   it("does not re-send cancel message on second handleAgentEnd call (regression)", () => {
@@ -963,16 +969,17 @@ describe("handleAgentEnd — cancellation path", () => {
       cancelled: true,
     };
 
-    // First call — should send cancel message and set completionNotified
-    handleAgentEnd(api, state, defs, ctx, {
+    // First call — should send cancel message and return state with completionNotified
+    const result1 = handleAgentEnd(api, state, defs, ctx, {
       type: "agent_end" as const,
       messages: [mockMsg("stop")],
     });
-    expect(state.completionNotified).toBe(true);
+    expect(result1.state!.completionNotified).toBe(true);
     expect(sendMessage).toHaveBeenCalledTimes(1);
 
-    // Second call (e.g. from session_tree reconstruction) — should NOT send again
-    handleAgentEnd(api, state, defs, ctx, {
+    // Second call with the returned state (e.g. from session_tree reconstruction) — should NOT send again
+    const notifiedState = result1.state!;
+    handleAgentEnd(api, notifiedState, defs, ctx, {
       type: "agent_end" as const,
       messages: [mockMsg("stop")],
     });
@@ -1142,6 +1149,63 @@ describe("handleAgentEnd — countdown outer catch", () => {
 
     // After the outer catch, widget should be cleared (undefined call)
     expect(ctx.ui.setWidget).toHaveBeenCalledWith("workflow-countdown", undefined);
+  });
+});
+
+describe("handleAgentEnd — non-UI countdown tracked by TimerManager", () => {
+  it("non-UI timeout is tracked by timerManager; clearAll cancels it", () => {
+    const { api, sendUserMessage } = createMockAPI();
+    const ctx = createMockContext({ hasUI: false });
+    const state = makeActiveState();
+    const defs = makeDefinition();
+
+    handleAgentEnd(api, state, defs, ctx, {
+      type: "agent_end" as const,
+      messages: [mockMsg("stop")],
+    });
+
+    // The countdown message should have been sent immediately
+    expect(api.sendMessage).toHaveBeenCalledWith(
+      {
+        customType: "workflow:countdown",
+        content: expect.stringContaining("3s"),
+        display: true,
+      },
+      { triggerTurn: false },
+    );
+
+    // Now clear all timers (simulating a session change)
+    timerManager.clearAll();
+
+    // Advance past the 3s timeout
+    vi.advanceTimersByTime(5000);
+
+    // sendUserMessage should NOT have been called — timeout was cancelled
+    expect(sendUserMessage).not.toHaveBeenCalled();
+  });
+
+  it("non-UI timeout fires sendUserMessage after 3s", () => {
+    const { api, sendUserMessage } = createMockAPI();
+    const ctx = createMockContext({ hasUI: false });
+    const state = makeActiveState();
+    const defs = makeDefinition();
+
+    handleAgentEnd(api, state, defs, ctx, {
+      type: "agent_end" as const,
+      messages: [mockMsg("stop")],
+    });
+
+    // Not yet
+    expect(sendUserMessage).not.toHaveBeenCalled();
+
+    // Advance 3s
+    vi.advanceTimersByTime(3000);
+
+    // Now it fires
+    expect(sendUserMessage).toHaveBeenCalledTimes(1);
+    // The message should contain phase info from the reminder template
+    const sentMessage = sendUserMessage.mock.calls[0][0] as string;
+    expect(sentMessage).toContain("Phase 1");
   });
 });
 

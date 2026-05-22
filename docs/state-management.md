@@ -109,26 +109,55 @@ For details on how subworkflows create nested scopes, see [docs/subworkflows.md]
 
 ---
 
+## Copy-on-Write Pattern
+
+All state-transition functions in [`src/state.ts`](../src/state.ts) follow a **copy-on-write** pattern: they receive the current `WorkflowState`, produce a **new** cloned state object, mutate the clone, and return it alongside metadata. The original input is never modified.
+
+The canonical clone helper is `cloneState()`, exported from `state.ts`:
+
+```typescript
+export function cloneState(state: WorkflowState): WorkflowState {
+  return {
+    ...state,
+    currentPath: state.currentPath.map((s) => ({ ...s })),
+  };
+}
+```
+
+This shallow-copies the top-level object and deep-copies the `currentPath` array (with new segment objects), ensuring each transition produces an independent state snapshot.
+
+### Return types
+
+| Function                      | Return type                                                                                         |
+| ----------------------------- | --------------------------------------------------------------------------------------------------- |
+| `advancePhase(state, defs)`   | `{ advanced: true; from: string; to: string \| null; newState: WorkflowState }`                     |
+| `loopPhase(state, defs)`      | `{ looped: true; to: string; newState: WorkflowState } \| { looped: false; error: string }`         |
+| `autoEnterSubworkflowRefs(state, entry)` | `{ phaseName: string \| null; newState: WorkflowState }`                                     |
+
+Callers (e.g. `tool.ts`, `command.ts`) receive `newState` and pass it to `setState()` to update the closure.
+
+---
+
 ## Phase Transitions
 
-`advancePhase()` in [`src/state.ts`](../src/state.ts) handles all forward navigation. It examines the **top of the stack** (innermost scope) and the **current phase entry** at that position, then applies one of four cases:
+`advancePhase()` in [`src/state.ts`](../src/state.ts) handles all forward navigation. It clones the input state, examines the **top of the stack** (innermost scope) and the **current phase entry** at that position, then applies one of four cases:
 
 ### Case 1: Entering a subworkflow (push)
 
 When the current entry at the top of the stack is a `SubworkflowReference`:
 
 ```
-BEFORE:
+BEFORE (input state):
   currentPath = [{ release, phaseIndex: 1 }]
                                        ↑ points to { subworkflow: "review" }
 
-ACTION:  push { review, phaseIndex: 0 }
+ACTION:  clone state (via cloneState()), push { review, phaseIndex: 0 } onto clone
 
-AFTER:
+AFTER (newState — input is untouched):
   currentPath = [{ release, 1 }, { review, 0 }]
                                   ↑ now executing review's first phase
 
-  globalStepCount++
+  newState.globalStepCount++
 ```
 
 ### Case 2: Normal advance (increment)
@@ -136,17 +165,17 @@ AFTER:
 When the current entry is a concrete `PhaseDefinition` and is **not** the last in scope:
 
 ```
-BEFORE:
+BEFORE (input state):
   currentPath = [{ release, phaseIndex: 0 }]
                                        ↑ "build" phase, not the last
 
-ACTION:  top.phaseIndex += 1
+ACTION:  clone state (via cloneState()), increment clone's top.phaseIndex
 
-AFTER:
+AFTER (newState — input is untouched):
   currentPath = [{ release, 1 }]
                             ↑ now at next phase
 
-  globalStepCount++
+  newState.globalStepCount++
 ```
 
 ### Case 3: Top-level completion (set inactive)
@@ -154,18 +183,17 @@ AFTER:
 When the current entry is the **last** phase in scope and the stack has only **one** segment (root workflow):
 
 ```
-BEFORE:
+BEFORE (input state):
   currentPath = [{ release, phaseIndex: 3 }]
                                        ↑ last phase "verify"
 
-ACTION:  state.active = false
-         state.completionNotified = false
+ACTION:  clone state (via cloneState()), set clone.active = false, clone.completionNotified = false
 
-AFTER:
+AFTER (newState):
   currentPath = [{ release, 3 }]   (unchanged)
   active: false   → workflow is DONE
 
-  globalStepCount++
+  newState.globalStepCount++
 ```
 
 The `agent_end` hook detects `active: false` + `completionNotified: false`, sends the completion message, then unloads state.
@@ -175,18 +203,17 @@ The `agent_end` hook detects `active: false` + `completionNotified: false`, send
 When the current entry is the **last** phase in scope and the stack has **more than one** segment (inside a subworkflow):
 
 ```
-BEFORE:
+BEFORE (input state):
   currentPath = [{ release, 1 }, { review, 2 }]
                                                ↑ last phase in "review"
 
-ACTION:  pop stack
-         parent.phaseIndex += 1
+ACTION:  clone state (via cloneState()), pop clone's stack, increment clone's parent.phaseIndex
 
-AFTER:
+AFTER (newState — input is untouched):
   currentPath = [{ release, 2 }]
                             ↑ parent advances past the subworkflow reference
 
-  globalStepCount++
+  newState.globalStepCount++
 ```
 
 ### ASCII summary of the four cases
@@ -204,8 +231,8 @@ AFTER:
                     ▼                  │
             ┌──────────────┐           │
             │ CASE 1: PUSH │           │
+            │ clone, push  │           │
             │ new segment  │           │
-            │ phaseIndex:0 │           │
             └──────────────┘           │
                                        ▼
                          ┌───────────────────────┐
@@ -217,13 +244,14 @@ AFTER:
                    ┌──────────────┐  ┌─────────────────┐
                    │ CASE 2:      │  │ Stack length?   │
                    │ INCREMENT    │  └──┬──────────┬───┘
-                   │ phaseIndex++ │   1 │          │ >1
+                   │ clone, idx++ │   1 │          │ >1
                    └──────────────┘     ▼          ▼
                                    ┌────────┐  ┌──────────────┐
                                    │ CASE 3 │  │ CASE 4:      │
                                    │ DONE   │  │ POP + ADVANCE│
-                                   │ active │  │ parent index │
-                                   │ =false │  │ += 1         │
+                                   │ clone, │  │ clone, pop,  │
+                                   │active- │  │ parent idx++ │
+                                   │ =false │  │              │
                                    └────────┘  └──────────────┘
 ```
 
@@ -231,12 +259,14 @@ AFTER:
 
 ## Loop Phase
 
-`loopPhase()` restarts the **innermost scope** from phase 0:
+`loopPhase()` restarts the **innermost scope** from phase 0. It clones the input state, resets the top segment's `phaseIndex`, increments `globalStepCount`, and returns `{ looped: true, to, newState }`. If the workflow has `loopable: false`, it returns `{ looped: false, error }` instead — without cloning.
 
 ```typescript
-// Only the top segment is affected
+const s = cloneState(state);
+const top = s.currentPath[s.currentPath.length - 1];
 top.phaseIndex = 0;
-state.globalStepCount++;
+s.globalStepCount++;
+return { looped: true, to: phaseName, newState: s };
 ```
 
 **Guards:**
@@ -252,24 +282,24 @@ state.globalStepCount++;
 **Example — looping inside a nested subworkflow:**
 
 ```
-BEFORE:
+BEFORE (input state):
   currentPath = [{ release, 2 }, { review, 1 }]
                                  ↑ innermost at phase 1
 
-ACTION:  loopPhase() → top.phaseIndex = 0
+ACTION:  loopPhase() → clone, set clone's top.phaseIndex = 0
 
-AFTER:
+AFTER (newState):
   currentPath = [{ release, 2 }, { review, 0 }]
                                            ↑ restarted
 
-  Parent scope ({ release, 2 }) is untouched.
+  Input state is untouched.
 ```
 
 ---
 
 ## Persistence
 
-State is persisted after every mutation so the session can recover after a crash or reload.
+State is persisted after every state transition (each of which returns a new state object) so the session can recover after a crash or reload.
 
 ### Storage mechanism
 
@@ -284,8 +314,8 @@ Each call appends a **new** entry to the session branch (no in-place updates). T
 | Trigger                 | Location                              | Condition                                                         |
 | ----------------------- | ------------------------------------- | ----------------------------------------------------------------- |
 | Workflow creation       | `registerWorkflowCommand` handler     | Immediately after `createInitialState()`                          |
-| Phase advance           | `workflow_step` tool, action `next`   | After `advancePhase()` mutates state                              |
-| Phase loop              | `workflow_step` tool, action `loop`   | After `loopPhase()` mutates state                                 |
+| Phase advance           | `workflow_step` tool, action `next`   | After `advancePhase()` returns new state                           |
+| Phase loop              | `workflow_step` tool, action `loop`   | After `loopPhase()` returns new state                              |
 | Cancellation (tool)     | `workflow_step` tool, action `cancel` | After setting `cancelled: true`, `active: false`                  |
 | Cancellation (command)  | `/cancel-workflow` command            | After setting `cancelled: true`, `active: false`                  |
 | Completion notification | `agent_end` hook                      | After sending the DONE message (marks `completionNotified: true`) |

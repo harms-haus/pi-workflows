@@ -85,7 +85,7 @@ export function registerWorkflowCommand(
       }
 
       // Reload definitions to get latest
-      const definitions = await reloadDefinitions();
+      const definitions = await reloadDefinitions(ctx.cwd);
 
       // Find the workflow
       const match = findWorkflowByCommandName(definitions, commandName);
@@ -129,12 +129,14 @@ export function registerWorkflowCommand(
 
       // Auto-enter subworkflow if first phase is a SubworkflowRef
       const firstEntry = definition.phases[0];
+      let stateToSet = newState;
       if (isSubworkflowRef(firstEntry)) {
-        autoEnterSubworkflowRefs(newState, firstEntry);
+        const { newState: enteredState } = autoEnterSubworkflowRefs(newState, firstEntry);
+        stateToSet = enteredState;
       }
 
-      setState(newState);
-      persistState(pi, newState);
+      setState(stateToSet);
+      persistState(pi, stateToSet);
       ctx.ui.setStatus("workflow", undefined);
       startWorkflowSession(pi, definition, workflowKey, description.trim());
     },
@@ -163,6 +165,7 @@ export function registerCancelWorkflowCommand(
       // Jump straight to DONE state
       const doneState: WorkflowState = {
         ...state,
+        currentPath: state.currentPath.map(seg => ({ ...seg })),
         active: false,
         cancelled: true,
         completionNotified: false,

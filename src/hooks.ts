@@ -14,21 +14,7 @@ import {
   DEFAULT_COMPLETION_MESSAGE,
 } from "./prompts";
 import { resolveTemplate, getBlockedTools, getWhitelist } from "./config";
-
-// Module-level countdown handle — prevents stacked intervals when agent_end
-// fires while a previous countdown is still active (race condition guard).
-let activeCountdown: ReturnType<typeof setInterval> | null = null;
-
-/** Clear any active countdown interval and widget. Called from session_start/session_tree handlers. */
-export function clearActiveCountdown(ctx: ExtensionContext): void {
-  if (activeCountdown !== null) {
-    clearInterval(activeCountdown);
-    activeCountdown = null;
-  }
-  if (ctx.hasUI) {
-    ctx.ui.setWidget("workflow-countdown", undefined);
-  }
-}
+import { timerManager } from "./TimerManager";
 
 // ── Status Bar ──
 export function updateStatus(
@@ -175,24 +161,22 @@ function sendCompletionMessage(
 /** Start a countdown widget that auto-continues after a delay. */
 function startCountdown(pi: ExtensionAPI, ctx: ExtensionContext, reminder: string): void {
   if (ctx.hasUI) {
-    if (activeCountdown !== null) {
-      clearInterval(activeCountdown);
-    }
+    // Capture hasUI flag to guard against stale ctx in callbacks
+    const ui = ctx.ui;
 
     let remaining = 3;
-    const interval = setInterval(() => {
+    timerManager.startInterval(1000, () => {
       try {
         remaining--;
         if (remaining > 0) {
-          ctx.ui.setWidget(
+          ui.setWidget(
             "workflow-countdown",
             [`⏳ Auto-continuing in ${remaining}s... (type anything to interrupt)`],
             { placement: "aboveEditor" },
           );
         } else {
-          clearInterval(interval);
-          activeCountdown = null;
-          ctx.ui.setWidget("workflow-countdown", undefined);
+          timerManager.clearAll();
+          ui.setWidget("workflow-countdown", undefined);
           try {
             pi.sendUserMessage(reminder);
           } catch {
@@ -200,14 +184,12 @@ function startCountdown(pi: ExtensionAPI, ctx: ExtensionContext, reminder: strin
           }
         }
       } catch {
-        clearInterval(interval);
-        activeCountdown = null;
-        ctx.ui.setWidget("workflow-countdown", undefined);
+        timerManager.clearAll();
+        ui.setWidget("workflow-countdown", undefined);
       }
-    }, 1000);
-    activeCountdown = interval;
+    });
 
-    ctx.ui.setWidget(
+    ui.setWidget(
       "workflow-countdown",
       ["⏳ Auto-continuing in 3s... (type anything to interrupt)"],
       { placement: "aboveEditor" },
@@ -221,13 +203,13 @@ function startCountdown(pi: ExtensionAPI, ctx: ExtensionContext, reminder: strin
       },
       { triggerTurn: false },
     );
-    setTimeout(() => {
+    timerManager.startTimeout(3000, () => {
       try {
         pi.sendUserMessage(reminder);
       } catch {
         // User already started typing — skip auto-continue
       }
-    }, 3000);
+    });
   }
 }
 
@@ -243,26 +225,13 @@ export function handleAgentEnd(
   // Case A: Workflow just reached DONE (not yet notified)
   if (!state.active && !state.completionNotified) {
     const definition = definitions[state.workflowKey];
-    if (state.cancelled) {
-      sendCompletionMessage(
-        pi,
-        definition,
-        state,
-        definition.completionMessage ?? DEFAULT_CANCELLED_MESSAGE,
-      );
-      state.completionNotified = true;
-      ctx.ui.setStatus("workflow", undefined);
-      return { unload: true, persist: true };
-    }
-    sendCompletionMessage(
-      pi,
-      definition,
-      state,
-      definition.completionMessage ?? DEFAULT_COMPLETION_MESSAGE,
-    );
-    state.completionNotified = true;
+    const template = state.cancelled
+      ? (definition.completionMessage ?? DEFAULT_CANCELLED_MESSAGE)
+      : (definition.completionMessage ?? DEFAULT_COMPLETION_MESSAGE);
+    sendCompletionMessage(pi, definition, state, template);
+    const mutatedState = { ...state, completionNotified: true };
     ctx.ui.setStatus("workflow", undefined);
-    return { unload: true, persist: true };
+    return { unload: true, persist: true, state: mutatedState };
   }
   // Case B: Workflow is still active (agent tried to stop mid-workflow)
   if (state.active) {

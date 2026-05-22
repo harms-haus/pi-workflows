@@ -32,6 +32,9 @@ pi-workflows/
 │   ├── config/               # Workflow loading, validation, template resolution
 │   │   ├── index.ts          #   Re-exports from sub-modules
 │   │   ├── loading.ts        #   Workflow directory scanning & two-pass loading
+│   │   ├── loading-parse.ts  #   Definition file parsing
+│   │   ├── loading-phases.ts #   Phase extraction & ordering
+│   │   ├── loading-resolve.ts#   Subworkflow & reference resolution
 │   │   ├── validation.ts     #   Definition validation & cycle detection
 │   │   └── templates.ts      #   Template variable resolution
 │   ├── state.ts              # State creation, advancement, persistence, reconstruction
@@ -40,6 +43,7 @@ pi-workflows/
 │   ├── hooks.ts              # Lifecycle hooks (tool_call, before_agent_start, agent_end, turn_end)
 │   ├── prompts.ts            # Context injection prompt builder & default templates
 │   ├── renderers.ts          # TUI message renderers for workflow events
+│   ├── TimerManager.ts       # Timer lifecycle management for workflow timeouts
 │   └── __tests__/
 │       ├── command.test.ts
 │       ├── config.test.ts

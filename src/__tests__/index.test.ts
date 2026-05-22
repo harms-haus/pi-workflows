@@ -12,7 +12,7 @@ const mockUpdateStatus = vi.fn();
 const mockHandleToolCall = vi.fn();
 const mockHandleBeforeAgentStart = vi.fn();
 const mockHandleAgentEnd = vi.fn();
-const mockClearActiveCountdown = vi.fn();
+const mockTimerManagerClearAll = vi.fn();
 const mockRegisterWorkflowTool = vi.fn();
 const mockRegisterWorkflowCommand = vi.fn();
 const mockRegisterCancelWorkflowCommand = vi.fn();
@@ -36,7 +36,10 @@ vi.mock("../hooks", () => ({
   handleToolCall: (...args: unknown[]) => mockHandleToolCall(...args),
   handleBeforeAgentStart: (...args: unknown[]) => mockHandleBeforeAgentStart(...args),
   handleAgentEnd: (...args: unknown[]) => mockHandleAgentEnd(...args),
-  clearActiveCountdown: (...args: unknown[]) => mockClearActiveCountdown(...args),
+}));
+
+vi.mock("../TimerManager", () => ({
+  timerManager: { clearAll: (...args: unknown[]) => mockTimerManagerClearAll(...args) },
 }));
 
 vi.mock("../tool", () => ({
@@ -135,7 +138,7 @@ describe("session_start handler", () => {
 
     await handlers["session_start"]({}, ctx);
 
-    expect(mockClearActiveCountdown).toHaveBeenCalledWith(ctx);
+    expect(mockTimerManagerClearAll).toHaveBeenCalled();
     expect(mockLoadWorkflows).toHaveBeenCalledWith(ctx.cwd);
     expect(mockReconstructState).toHaveBeenCalledWith(ctx);
     expect(mockUpdateStatus).toHaveBeenCalledWith(ctx, state, defs);
@@ -172,7 +175,7 @@ describe("session_tree handler", () => {
 
     await handlers["session_tree"]({}, ctx);
 
-    expect(mockClearActiveCountdown).toHaveBeenCalledWith(ctx);
+    expect(mockTimerManagerClearAll).toHaveBeenCalled();
     expect(mockLoadWorkflows).toHaveBeenCalledWith(ctx.cwd);
     expect(mockReconstructState).toHaveBeenCalledWith(ctx);
     expect(mockUpdateStatus).toHaveBeenCalledWith(ctx, state, defs);

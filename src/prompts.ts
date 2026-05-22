@@ -1,4 +1,5 @@
 import { getBlockedTools, resolveTemplate } from "./config";
+import { phaseEntryName } from "./state";
 import type { ActiveWorkflow, PhaseEntry } from "./types";
 import { isSubworkflowRef } from "./types";
 
@@ -41,17 +42,7 @@ export function buildContextPrompt(active: ActiveWorkflow): string {
       : `**Progress:** Step ${state.globalStepCount} (${innerSegment.phaseIndex + 1}/${innerTotal} in current scope)`;
 
   // Next phase name
-  let nextPhaseName: string;
-  if (nextPhase) {
-    nextPhaseName =
-      isSubworkflowRef(nextPhase) && nextPhase.resolved
-        ? nextPhase.resolved.name
-        : isSubworkflowRef(nextPhase)
-          ? nextPhase.workflowKey
-          : nextPhase.name;
-  } else {
-    nextPhaseName = "DONE";
-  }
+  const nextPhaseName: string = nextPhase ? phaseEntryName(nextPhase) : "DONE";
 
   const vars: Record<string, string> = {
     workflowName: definition.name,
@@ -127,10 +118,7 @@ function collectAllProfiles(definition: { phases: PhaseEntry[] }): string[] {
  */
 function getPreviousPhaseName(definition: { phases: PhaseEntry[] }, currentIndex: number): string {
   if (currentIndex <= 0) return "(start)";
-  const prev = definition.phases[currentIndex - 1];
-  if (isSubworkflowRef(prev) && prev.resolved) return prev.resolved.name;
-  if (isSubworkflowRef(prev)) return prev.workflowKey;
-  return prev.name;
+  return phaseEntryName(definition.phases[currentIndex - 1]);
 }
 
 // ── Default messages for agent_end hook ──

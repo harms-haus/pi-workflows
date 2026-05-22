@@ -18,17 +18,18 @@ Tests use Vitest's built-in `describe`/`it`/`expect` API. No additional assertio
 
 ## Test Files
 
-All tests live under `src/__tests__/`. There are 8 test files with **268 total test cases**.
+All tests live under `src/__tests__/`. There are 9 test files with **324 total test cases**.
 
 | File                | Tests | What's Covered                                                                                                                                                                                                              |
 | ------------------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `config.test.ts`    | 84    | `resolveTemplate`, `validateWorkflowDefinition`, `detectCycles`, `findWorkflowByCommandName`, `getBlockedTools`, `getWhitelist`, `loadWorkflowFromDir`, `loadWorkflowsFromDir`, `loadWorkflows`                             |
 | `state.test.ts`     | 36    | `createInitialState`, `advancePhase` (linear, enter-subworkflow, breakout, multi-level, auto-enter, two-subworkflows), `loopPhase` (scope isolation, loopable inheritance), `resolveActive`, `reconstructState`, `isActive` |
 | `prompts.test.ts`   | 10    | `buildContextPrompt` (linear, nested, template resolution, profiles), `collectAllProfiles`, `getPreviousPhaseName`, default message constants                                                                               |
-| `hooks.test.ts`     | 43    | `updateStatus`, `handleToolCall`, `handleBeforeAgentStart`, `handleAgentEnd` (completion, cancellation, countdown widget, abort detection, no-UI fallback, edge cases), `clearActiveCountdown`                              |
+| `hooks.test.ts`     | 47    | `updateStatus`, `handleToolCall`, `handleBeforeAgentStart`, `handleAgentEnd` (completion, cancellation, countdown widget, abort detection, no-UI fallback, edge cases, TimerManager-tracked non-UI countdown), `timerManager.clearAll` |
 | `tool.test.ts`      | 34    | `registerWorkflowTool` — `status`, `next`, `cancel`, `loop` actions; `renderCall`, `renderResult`; edge cases (stale definition, nested path, unknown action)                                                               |
 | `command.test.ts`   | 28    | `registerWorkflowCommand` (start, validation, conflicts, tab completion, subworkflow rejection), `registerCancelWorkflowCommand` (cancel, persist, message)                                                                 |
 | `renderers.test.ts` | 10    | `registerRenderers` — `workflow:context`, `workflow:complete`, `workflow:countdown` renderers                                                                                                                               |
+| `TimerManager.test.ts` | 10  | `TimerManager` — `startInterval`, `startTimeout`, `clearAll`, stale callback prevention, timer replacement                                                          |
 | `index.test.ts`     | 23    | Extension entry point — event handler registration, `session_start`, `session_tree`, `tool_call`, `before_agent_start`, `agent_end`, `turn_end` handlers                                                                    |
 
 ### config.test.ts (84 tests)
@@ -134,9 +135,9 @@ Uses shared fixture definitions imported from `helpers/fixtures.ts` (see [Test H
 
 **Default message constants** — 3 tests: each constant (`DEFAULT_NOT_DONE_REMINDER`, `DEFAULT_COMPLETION_MESSAGE`, `DEFAULT_CANCELLED_MESSAGE`) contains expected template variables.
 
-### hooks.test.ts (43 tests)
+### hooks.test.ts (47 tests)
 
-**`clearActiveCountdown`** — 3 tests: clears widget when interval is active, safe to call with no active countdown, safe when `ctx.hasUI` is false.
+**`timerManager.clearAll`** — 3 tests: clears widget when interval is active, is safe to call when no timers are active, is safe to call when `ctx.hasUI` is false.
 
 **`handleAgentEnd` — countdown widget** — 4 tests: skips auto-continue on abort, shows countdown widget before auto-continue (3s→2s→1s→send), handles `sendUserMessage` throwing during countdown, prevents stacked intervals.
 
@@ -152,13 +153,15 @@ Uses shared fixture definitions imported from `helpers/fixtures.ts` (see [Test H
 
 **`handleAgentEnd` — completion path** — 3 tests: sends default completion message, uses custom `completionMessage` template, uses `DEFAULT_COMPLETION_MESSAGE` when no custom template.
 
-**`handleAgentEnd` — cancellation path** — 4 tests: sends cancelled message with details, uses custom template for cancelled workflow, uses `DEFAULT_CANCELLED_MESSAGE`, does not set `completionNotified` when cancelled.
+**`handleAgentEnd` — cancellation path** — 5 tests: sends cancelled message with details, uses custom template for cancelled workflow, uses `DEFAULT_CANCELLED_MESSAGE`, sets `completionNotified` when cancelled, does not re-send cancel message on second call (regression).
 
-**`handleAgentEnd` — edge cases** — 3 tests: returns noOp when already `completionNotified`, returns noOp when `resolveActive` returns null, detects abort from message history.
+**`handleAgentEnd` — edge cases** — 5 tests: returns noOp when already `completionNotified`, returns noOp when `resolveActive` returns null, detects abort from message history (not-last-message and `stopReason=aborted`), handles empty messages array for abort detection.
 
 **`handleToolCall` — edge cases** — 2 tests: returns undefined when `resolveActive` returns null, uses custom `blockReasonTemplate`.
 
-**`handleAgentEnd` — additional edge cases** — 3 tests: no-UI fallback `setTimeout` throwing, `setWidget` throwing inside interval gracefully, countdown outer catch.
+**`handleAgentEnd` — additional edge cases** — 2 tests: no-UI fallback `setTimeout` throwing, `setWidget` throwing inside interval gracefully (countdown outer catch).
+
+**`handleAgentEnd` — non-UI countdown tracked by TimerManager** — 2 tests: non-UI timeout is tracked by `timerManager`; `clearAll` cancels it, non-UI timeout fires `sendUserMessage` after 3s.
 
 ### tool.test.ts (34 tests)
 
@@ -206,6 +209,20 @@ Uses shared fixture definitions imported from `helpers/fixtures.ts` (see [Test H
 **`workflow:complete` renderer** — 3 tests: returns Text instance, extracts string content with bold+success styling, handles non-string content gracefully.
 
 **`workflow:countdown` renderer** — 3 tests: returns Text instance, extracts string content with dim styling, handles non-string content gracefully.
+
+### TimerManager.test.ts (10 tests)
+
+Tests the `TimerManager` class in isolation using Vitest fake timers (`vi.useFakeTimers()`) with `beforeEach`/`afterEach` cleanup.
+
+**`startInterval`** — 1 test: creates a tracked interval that fires repeatedly at the specified delay.
+
+**`startTimeout`** — 1 test: creates a tracked timeout that fires once and does not repeat.
+
+**`clearAll`** — 3 tests: clears both interval and timeout so callbacks don't fire after clear, safe to call when no timers are active, safe to call multiple times in a row.
+
+**Stale callback prevention** — 2 tests: `clearAll` before timeout fires prevents callback, `clearAll` before interval fires prevents callback.
+
+**Replacing timers** — 3 tests: calling `startInterval` again replaces the previous one (old callback doesn't fire), calling `startTimeout` again replaces the previous one, interval and timeout are independent — replacing one doesn't affect the other.
 
 ### index.test.ts (23 tests)
 

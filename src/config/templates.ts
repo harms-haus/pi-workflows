@@ -8,7 +8,7 @@ import type { PhaseDefinition } from "../types";
  */
 export function resolveTemplate(template: string, vars: Record<string, string>): string {
   return template.replace(/\{(\w+)\}/g, (_match, key: string) => {
-    return key in vars ? vars[key] : `{${key}}`;
+    return Object.hasOwn(vars, key) ? vars[key] : `{${key}}`;
   });
 }
 

@@ -208,4 +208,4 @@ export interface HookStateMutation {
 export type GetState = () => WorkflowState | null;
 export type SetState = (s: WorkflowState | null) => void;
 export type GetDefinitions = () => Record<string, WorkflowDefinition>;
-export type ReloadDefinitions = () => Promise<Record<string, WorkflowDefinition>>;
+export type ReloadDefinitions = (cwd?: string) => Promise<Record<string, WorkflowDefinition>>;

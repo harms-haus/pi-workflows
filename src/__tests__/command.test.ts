@@ -291,6 +291,58 @@ describe("registerWorkflowCommand", () => {
     });
   });
 
+  describe("workflow with subworkflow as first phase (auto-enter)", () => {
+    it("auto-enters subworkflow when first phase is a SubworkflowRef", async () => {
+      const parentWithSubFirst: WorkflowDefinition = {
+        name: "ParentSubFirst",
+        commandName: "psf",
+        initialMessage: "Start {workflowName}",
+        phases: [
+          { subworkflow: true, workflowKey: "sub-workflow", resolved: subDefinition },
+          { id: "p2", name: "Phase 2", emoji: "2️⃣", instructions: "Do second" },
+        ],
+      };
+      (reloadDefinitions as ReturnType<typeof vi.fn>).mockResolvedValue({
+        "psf-wf": parentWithSubFirst,
+        "sub-workflow": subDefinition,
+      });
+      mockFindWorkflowByCommandName.mockReturnValue(["psf-wf", parentWithSubFirst]);
+
+      await handler("psf my task", ctx);
+
+      expect(setState).toHaveBeenCalledTimes(1);
+      // State should have 2 path segments (auto-entered subworkflow)
+      expect(state).not.toBeNull();
+      expect(state!.currentPath).toHaveLength(2);
+      expect(state!.currentPath[0]).toEqual({ workflowKey: "psf-wf", phaseIndex: 0 });
+      expect(state!.currentPath[1]).toEqual({ workflowKey: "sub-workflow", phaseIndex: 0 });
+    });
+  });
+
+  describe("already active workflow with unresolvable state", () => {
+    it("shows 'unknown' phase when resolveActive returns null", async () => {
+      state = {
+        active: true,
+        workflowKey: "nonexistent",
+        currentPath: [{ workflowKey: "nonexistent", phaseIndex: 0 }],
+        globalStepCount: 0,
+        taskId: "wf-old",
+        taskDescription: "old task",
+        startedAt: Date.now(),
+        completionNotified: false,
+        cancelled: false,
+      };
+      ctx.ui.confirm.mockResolvedValue(false);
+
+      await handler("test-cmd new task", ctx);
+
+      expect(ctx.ui.confirm).toHaveBeenCalledWith(
+        "Workflow already active",
+        expect.stringContaining("Phase: unknown"),
+      );
+    });
+  });
+
   describe("missing description", () => {
     it("shows usage warning when description is empty", async () => {
       await handler("test-cmd", ctx);
@@ -307,6 +359,70 @@ describe("registerWorkflowCommand", () => {
       expect(ctx.ui.notify).toHaveBeenCalledWith(
         "Usage: /workflow test-cmd {description}",
         "warning",
+      );
+    });
+  });
+
+  describe("unknown commandName with no workflows", () => {
+    it("shows (none) when no workflows available", async () => {
+      mockFindWorkflowByCommandName.mockReturnValue(null);
+      (reloadDefinitions as ReturnType<typeof vi.fn>).mockResolvedValue({});
+
+      await handler("nonexistent some desc", ctx);
+
+      expect(ctx.ui.notify).toHaveBeenCalledWith(
+        expect.stringContaining("(none)"),
+        "error",
+      );
+    });
+  });
+
+  describe("workflow without show field", () => {
+    it("is treated as user-visible (show defaults to user)", async () => {
+      const defNoShow: WorkflowDefinition = {
+        name: "NoShow",
+        commandName: "noshow",
+        initialMessage: "Start",
+        phases: [{ id: "p1", name: "P1", emoji: "1️⃣", instructions: "Do" }],
+      };
+      (reloadDefinitions as ReturnType<typeof vi.fn>).mockResolvedValue({ "noshow-wf": defNoShow });
+      mockFindWorkflowByCommandName.mockReturnValue(["noshow-wf", defNoShow]);
+
+      await handler("noshow my task", ctx);
+
+      expect(setState).toHaveBeenCalledTimes(1);
+      expect(state).not.toBeNull();
+      expect(state!.workflowKey).toBe("noshow-wf");
+    });
+
+    it("appears in tab completion when no show field", async () => {
+      const defNoShow: WorkflowDefinition = {
+        name: "NoShow",
+        commandName: "noshow",
+        initialMessage: "Start",
+        phases: [{ id: "p1", name: "P1", emoji: "1️⃣", instructions: "Do" }],
+      };
+      mockLoadWorkflows.mockReturnValue({ "noshow-wf": defNoShow });
+      const cmd = mockPI.commands.get("workflow")!;
+      const completions = await cmd.getArgumentCompletions!("noshow");
+
+      expect(completions).toEqual([{ value: "noshow", label: "noshow" }]);
+    });
+
+    it("appears in available workflows list when no show field", async () => {
+      const defNoShow: WorkflowDefinition = {
+        name: "NoShow",
+        commandName: "noshow",
+        initialMessage: "Start",
+        phases: [{ id: "p1", name: "P1", emoji: "1️⃣", instructions: "Do" }],
+      };
+      mockLoadWorkflows.mockReturnValue({ "noshow-wf": defNoShow });
+
+      await handler("", ctx);
+
+      expect(ctx.ui.notify).toHaveBeenCalledWith(
+        expect.stringContaining("noshow"),
+        "info",
       );
     });
   });

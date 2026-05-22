@@ -287,6 +287,121 @@ describe("getPreviousPhaseName (via buildContextPrompt)", () => {
   });
 });
 
+// ── Nested progress with SubworkflowRef ──
+
+describe("buildContextPrompt — nested progress with SubworkflowRef", () => {
+  it("shows inner phase count from resolved subworkflow when currentPhaseEntry is resolved SubworkflowRef", () => {
+    const subPhase1: PhaseDefinition = {
+      id: "sp1",
+      name: "Sub Phase 1",
+      emoji: "🔧",
+      instructions: "Sub work 1",
+    };
+    const subPhase2: PhaseDefinition = {
+      id: "sp2",
+      name: "Sub Phase 2",
+      emoji: "🔩",
+      instructions: "Sub work 2",
+    };
+    const subDef: WorkflowDefinition = {
+      name: "Sub",
+      commandName: "sub",
+      initialMessage: "Start",
+      show: "workflows",
+      phases: [subPhase1, subPhase2],
+    };
+    const parentDef: WorkflowDefinition = {
+      name: "Parent",
+      commandName: "par",
+      initialMessage: "Start",
+      phases: [phase1, { subworkflow: true, workflowKey: "sub", resolved: subDef }],
+    };
+
+    const state: WorkflowState = {
+      active: true,
+      workflowKey: "parent",
+      currentPath: [
+        { workflowKey: "parent", phaseIndex: 1 },
+        { workflowKey: "sub", phaseIndex: 0 },
+      ],
+      globalStepCount: 3,
+      taskId: "wf-123",
+      taskDescription: "test task",
+      startedAt: 1000,
+      completionNotified: false,
+      cancelled: false,
+    };
+
+    const defs: Record<string, WorkflowDefinition> = { parent: parentDef, sub: subDef };
+    const innerSegment = state.currentPath[state.currentPath.length - 1];
+    const innerDef = defs[innerSegment.workflowKey];
+    const currentEntry = innerDef.phases[innerSegment.phaseIndex];
+    const currentPhase = currentEntry as PhaseDefinition;
+    const nextPhase: PhaseEntry | null = innerDef.phases[innerSegment.phaseIndex + 1] ?? null;
+
+    const active: ActiveWorkflow = {
+      definition: parentDef,
+      state,
+      currentPhase,
+      currentPhaseEntry: { subworkflow: true, workflowKey: "sub", resolved: subDef },
+      nextPhase,
+      breadcrumb: [
+        { workflowKey: "parent", name: parentDef.name, phaseName: parentDef.name, emoji: "" },
+        { workflowKey: "sub", name: subDef.name, phaseName: subPhase1.name, emoji: subPhase1.emoji },
+      ],
+    };
+
+    const prompt = buildContextPrompt(active);
+    // Should show progress from the resolved subworkflow's phases.length (2)
+    expect(prompt).toContain("1/2 in current scope");
+  });
+});
+
+// ── Blocked tools ──
+
+describe("buildContextPrompt — blocked tools", () => {
+  it("shows blocked tools when phase has a blacklist", () => {
+    const phaseWithBlacklist: PhaseDefinition = {
+      id: "p1",
+      name: "Restricted Phase",
+      emoji: "🔒",
+      instructions: "Blocked: {blockedToolsList}",
+      tools: { blacklist: ["edit", "write"] },
+    };
+    const defWithBlacklist: WorkflowDefinition = {
+      name: "Restricted",
+      commandName: "restricted",
+      initialMessage: "Start",
+      phases: [phaseWithBlacklist],
+    };
+    const active = makeActive(defWithBlacklist);
+    const prompt = buildContextPrompt(active);
+    expect(prompt).toContain("Blocked: edit, write");
+  });
+});
+
+// ── collectAllProfiles with unresolved subworkflow ref ──
+
+describe("collectAllProfiles — unresolved subworkflow ref", () => {
+  it("skips unresolved subworkflow refs in profile collection", () => {
+    const parentDef: WorkflowDefinition = {
+      name: "Parent",
+      commandName: "par",
+      initialMessage: "Start",
+      phases: [
+        phaseWithProfiles,
+        { subworkflow: true, workflowKey: "missing", resolved: null },
+      ],
+    };
+    const active = makeActive(parentDef);
+    const prompt = buildContextPrompt(active);
+    // Should still show parent profiles without crashing
+    expect(prompt).toContain("All profiles:");
+    expect(prompt).toContain("coder");
+    expect(prompt).toContain("reviewer");
+  });
+});
+
 // ── Default Messages ──
 
 describe("default message constants", () => {

@@ -7,8 +7,8 @@ import {
   handleToolCall,
   handleBeforeAgentStart,
   handleAgentEnd,
-  clearActiveCountdown,
 } from "./hooks";
+import { timerManager } from "./TimerManager";
 import { registerWorkflowTool } from "./tool";
 import { registerWorkflowCommand, registerCancelWorkflowCommand } from "./command";
 import { registerRenderers } from "./renderers";
@@ -16,6 +16,16 @@ import { registerRenderers } from "./renderers";
 /** Check if an error is a stale-context error (session was replaced/reloaded mid-handler). */
 function isStaleError(e: unknown): boolean {
   return e instanceof Error && e.message.includes("stale");
+}
+
+/** Wrap a synchronous handler so stale-context errors are silently swallowed. */
+function withStaleGuard(fn: () => void): void {
+  try {
+    fn();
+  } catch (e) {
+    if (isStaleError(e)) return;
+    throw e;
+  }
 }
 
 export default function (pi: ExtensionAPI): void {
@@ -27,35 +37,27 @@ export default function (pi: ExtensionAPI): void {
     state = s;
   };
   const getDefinitions = () => definitions;
-  const reloadDefinitions = () => {
-    definitions = loadWorkflows();
+  const reloadDefinitions = (cwd?: string) => {
+    definitions = loadWorkflows(cwd);
     return Promise.resolve(definitions);
   };
 
+  /** Shared session initialisation used by session_start and session_tree. */
+  function initSession(
+    ctx: Parameters<typeof reconstructState>[0] & Parameters<typeof updateStatus>[0] & { cwd: string },
+  ) {
+    timerManager.clearAll();
+    definitions = loadWorkflows(ctx.cwd);
+    state = reconstructState(ctx);
+    updateStatus(ctx, state, definitions);
+  }
+
   pi.on("session_start", (_event, ctx) => {
-    try {
-      clearActiveCountdown(ctx);
-      definitions = loadWorkflows(ctx.cwd);
-      state = reconstructState(ctx);
-      updateStatus(ctx, state, definitions);
-    } catch (e) {
-      if (isStaleError(e)) return;
-      throw e;
-    }
+    withStaleGuard(() => { initSession(ctx); });
   });
 
   pi.on("session_tree", (_event, ctx) => {
-    try {
-      clearActiveCountdown(ctx);
-      // Capture cwd synchronously before any async gap
-      const cwd = ctx.cwd;
-      definitions = loadWorkflows(cwd);
-      state = reconstructState(ctx);
-      updateStatus(ctx, state, definitions);
-    } catch (e) {
-      if (isStaleError(e)) return;
-      throw e;
-    }
+    withStaleGuard(() => { initSession(ctx); });
   });
 
   pi.on("tool_call", (event, _ctx) => {
@@ -67,29 +69,24 @@ export default function (pi: ExtensionAPI): void {
   });
 
   pi.on("agent_end", (event, ctx) => {
-    try {
+    withStaleGuard(() => {
       const mutation = handleAgentEnd(pi, state, definitions, ctx, event);
-      if (mutation.persist && state) {
-        persistState(pi, state);
-      }
       if (mutation.unload) {
+        if (mutation.persist && state) {
+          persistState(pi, state);
+        }
         state = null;
       } else if (mutation.state) {
         state = mutation.state;
+        if (mutation.persist) {
+          persistState(pi, state);
+        }
       }
-    } catch (e) {
-      if (isStaleError(e)) return;
-      throw e;
-    }
+    });
   });
 
   pi.on("turn_end", (_event, ctx) => {
-    try {
-      updateStatus(ctx, state, definitions);
-    } catch (e) {
-      if (isStaleError(e)) return;
-      throw e;
-    }
+    withStaleGuard(() => { updateStatus(ctx, state, definitions); });
   });
 
   registerWorkflowTool(pi, getState, getDefinitions, setState);

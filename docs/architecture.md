@@ -28,27 +28,36 @@ The extension has no HTTP server, no database, and no background processes. It i
 | `config/index.ts`      | Barrel module — re-exports the public API from all config submodules                                                                              | (re-exports only)                                                                                                                                                                                                                                                                   | `config/templates.ts`, `config/validation.ts`, `config/loading.ts` |
 | `config/templates.ts`  | Template variable resolution and phase tool-accessor helpers                                                                                      | `resolveTemplate()`, `getBlockedTools()`, `getWhitelist()`                                                                                                                                                                                                                          | `types.ts`                                                         |
 | `config/validation.ts` | Workflow definition validation and subworkflow cycle detection (iterative DFS)                                                                    | `validateWorkflowDefinition()`, `detectCycles()`, `VALID_COMMAND_NAME_RE`                                                                                                                                                                                                           | `types.ts`                                                         |
-| `config/loading.ts`    | Workflow discovery, YAML/Markdown loading, subworkflow resolution, command-name lookup                                                            | `findWorkflowByCommandName()`, `loadWorkflowFromDir()`, `loadWorkflowsFromDir()`, `loadWorkflows()`                                                                                                                                                                                 | `types.ts`, `config/validation.ts`                                 |
-| `state.ts`             | State creation, phase advancement, subworkflow navigation, persistence, reconstruction                                                            | `createInitialState()`, `advancePhase()`, `loopPhase()`, `resolveActive()`, `persistState()`, `reconstructState()`, `isActive()`, `autoEnterSubworkflowRefs()`, `resolveFirstPhase()`, `phaseEntryName()`                                                                           | `types.ts`                                                         |
+| `config/loading.ts`    | Orchestrator: top-level discovery, directory scanning, command-name lookup                                                                        | `findWorkflowByCommandName()`, `loadWorkflowFromDir()`, `loadWorkflowsFromDir()`, `loadWorkflows()`                                                                                                                                                                                 | `types.ts`, `config/validation.ts`, `config/loading-parse.ts`, `config/loading-phases.ts`, `config/loading-resolve.ts` |
+| `config/loading-parse.ts` | YAML parsing, field extraction from `workflow.yaml` and phase frontmatter                                                                      | `parseWorkflowYaml()`, `extractPhaseMetadata()`                                                                                                                                                                                                                                     | `types.ts`                                                         |
+| `config/loading-phases.ts` | Path safety checks and phase loading from markdown files                                                                                        | `checkPathSafety()`, `loadPhaseFromMarkdown()`                                                                                                                                                                                                                                      | `types.ts`, `config/loading-parse.ts`                              |
+| `config/loading-resolve.ts` | Cycle removal, subworkflow reference resolution, duplicate command-name detection                                                               | `removeCycles()`, `resolveSubworkflowRefs()`, `checkDuplicateCommandNames()`                                                                                                                                                                                                        | `types.ts`, `config/validation.ts`                                 |
+| `state.ts`             | State creation, copy-on-write phase advancement, subworkflow navigation, persistence, reconstruction                                             | `createInitialState()`, `cloneState()`, `advancePhase()`, `loopPhase()`, `resolveActive()`, `persistState()`, `reconstructState()`, `isActive()`, `autoEnterSubworkflowRefs()`, `resolveFirstPhase()`, `phaseEntryName()`                                                          | `types.ts`                                                         |
+| `TimerManager.ts`      | Timer management singleton tracking `setInterval`/`setTimeout` with stale-callback prevention                                                      | `TimerManager` (class), `timerManager` (singleton)                                                                                                                                                                                                                                   | —                                                                  |
 | `tool.ts`              | Registers the `workflow_step` tool (status, next, cancel, loop actions)                                                                           | `registerWorkflowTool()`                                                                                                                                                                                                                                                            | `types.ts`, `state.ts`, `config/`                                  |
 | `command.ts`           | Registers `/workflow` and `/cancel-workflow` slash commands                                                                                       | `registerWorkflowCommand()`, `registerCancelWorkflowCommand()`                                                                                                                                                                                                                      | `types.ts`, `state.ts`, `config/`                                  |
-| `hooks.ts`             | Lifecycle hook handlers — exports 4 functions used across 6 event registrations (`session_start`/`session_tree` are handled inline in `index.ts`) | `updateStatus()`, `handleToolCall()`, `handleBeforeAgentStart()`, `handleAgentEnd()`                                                                                                                                                                                                | `types.ts`, `state.ts`, `config/`, `prompts.ts`                    |
-| `prompts.ts`           | Context prompt construction and default message templates                                                                                         | `buildContextPrompt()`, `DEFAULT_NOT_DONE_REMINDER`, `DEFAULT_COMPLETION_MESSAGE`, `DEFAULT_CANCELLED_MESSAGE`                                                                                                                                                                      | `types.ts`, `config/`                                              |
+| `hooks.ts`             | Lifecycle hook handlers — exports 4 functions used across 6 event registrations (`session_start`/`session_tree` are handled inline in `index.ts`) | `updateStatus()`, `handleToolCall()`, `handleBeforeAgentStart()`, `handleAgentEnd()`                                                                                                                                                                                                | `types.ts`, `state.ts`, `config/`, `prompts.ts`, `TimerManager.ts` |
+| `prompts.ts`           | Context prompt construction and default message templates                                                                                         | `buildContextPrompt()`, `DEFAULT_NOT_DONE_REMINDER`, `DEFAULT_COMPLETION_MESSAGE`, `DEFAULT_CANCELLED_MESSAGE`                                                                                                                                                                      | `types.ts`, `config/`, `state.ts`                                  |
 | `renderers.ts`         | TUI message renderers for workflow message types                                                                                                  | `registerRenderers()`                                                                                                                                                                                                                                                               | —                                                                  |
 
 ### Dependency Graph
 
 ```
 index.ts
-├── config/ ───────── types.ts
-│   ├── loading.ts ──── types.ts, config/validation.ts
-│   └── validation.ts ──types.ts
-│   └── templates.ts ───types.ts
-├── state.ts ──────── types.ts
-├── hooks.ts ──────── types.ts, config/, state.ts, prompts.ts
-│   └── prompts.ts ── types.ts, config/
-├── tool.ts ───────── types.ts, config/, state.ts
-├── command.ts ────── types.ts, config/, state.ts
+├── config/ ────────────── types.ts
+│   ├── loading.ts ──────── types.ts, config/validation.ts, config/loading-parse.ts,
+│   │                       config/loading-phases.ts, config/loading-resolve.ts
+│   ├── loading-parse.ts ── types.ts
+│   ├── loading-phases.ts ─ types.ts, config/loading-parse.ts
+│   ├── loading-resolve.ts ─ types.ts, config/validation.ts
+│   ├── validation.ts ───── types.ts
+│   └── templates.ts ────── types.ts
+├── state.ts ──────────── types.ts
+├── hooks.ts ──────────── types.ts, config/, state.ts, prompts.ts, TimerManager.ts
+│   └── prompts.ts ────── types.ts, config/, state.ts
+├── tool.ts ───────────── types.ts, config/, state.ts
+├── command.ts ────────── types.ts, config/, state.ts
+├── TimerManager.ts
 └── renderers.ts
 ```
 
@@ -176,6 +185,8 @@ Tools and commands are registered at initialization time and receive the accesso
 | `/workflow` command                       | Calls `setState(newState)`                                                           | Starts a new workflow, replacing any prior active state |
 | `/cancel-workflow` command                | Calls `setState(null)`                                                               | Unloads workflow immediately                            |
 
+> **Copy-on-write semantics:** `advancePhase()` and `loopPhase()` in `state.ts` are pure functions — they call `cloneState()` to produce a deep copy, mutate the copy, and return it as `newState` in their result object. The caller (typically `tool.ts` or `hooks.ts`) is responsible for passing the new state to `setState()`. The original state object is never mutated in place.
+
 ---
 
 ## Event Subscription Map
@@ -221,20 +232,22 @@ turn_end(event, ctx)             → void
 
 When the user replaces or reloads a session while an async handler is still executing, the pi runtime marks the context as **stale**. Any subsequent API call on that context throws an error whose message contains the string `"stale"`.
 
-### Pattern
+### `withStaleGuard()` and `initSession()`
 
-Every handler that calls `pi.*` methods or accesses `ctx` after an `await` wraps its body in a try/catch:
+Event handlers that call `pi.*` methods or access `ctx` are wrapped in `withStaleGuard()`, a higher-order function defined in `index.ts` that catches stale-context errors and silently discards them:
 
 ```typescript
-try {
-  // ... handler logic using ctx or pi ...
-} catch (e) {
-  if (isStaleError(e)) return; // silently discard
-  throw e; // re-throw real errors
+function withStaleGuard(fn: () => void): void {
+  try {
+    fn();
+  } catch (e) {
+    if (isStaleError(e)) return;
+    throw e;
+  }
 }
 ```
 
-The `isStaleError` helper is defined in `index.ts`:
+The `isStaleError` helper checks for the stale marker:
 
 ```typescript
 function isStaleError(e: unknown): boolean {
@@ -242,14 +255,27 @@ function isStaleError(e: unknown): boolean {
 }
 ```
 
+Both `session_start` and `session_tree` share a common `initSession()` function that handles definition loading, timer cleanup, state reconstruction, and status update:
+
+```typescript
+function initSession(ctx: { ... }) {
+  timerManager.clearAll();
+  definitions = loadWorkflows(ctx.cwd);
+  state = reconstructState(ctx);
+  updateStatus(ctx, state, definitions);
+}
+```
+
+This ensures timers from a previous session are always cancelled before loading new state.
+
 ### Handlers with stale guards
 
-| Handler         | Why it needs the guard                                                                                                                                |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `session_start` | Calls `loadWorkflows(ctx.cwd)` and `updateStatus(ctx, ...)` — the `ctx` is invalid if the session was replaced during the async `loadWorkflows` call. |
-| `session_tree`  | Same as `session_start`. Additionally captures `ctx.cwd` synchronously before the async gap to prevent accessing a stale context.                     |
-| `agent_end`     | Calls `pi.sendMessage()`, `persistState(pi, ...)`, and `ctx.ui.setStatus()` — all of which can throw on a replaced session.                           |
-| `turn_end`      | Calls `updateStatus(ctx, ...)` which uses `ctx.ui.setStatus()`.                                                                                       |
+| Handler         | Guard wrapper     | Why it needs the guard                                                                                                     |
+| --------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `session_start` | `withStaleGuard`  | Calls `loadWorkflows(ctx.cwd)`, `reconstructState(ctx)`, and `updateStatus(ctx, ...)` — `ctx` may be stale.               |
+| `session_tree`  | `withStaleGuard`  | Same as `session_start`. Also clears timers via `timerManager.clearAll()`.                                                |
+| `agent_end`     | `withStaleGuard`  | Calls `pi.sendMessage()`, `persistState(pi, ...)`, and `ctx.ui.setStatus()` — all of which can throw on a replaced session. |
+| `turn_end`      | `withStaleGuard`  | Calls `updateStatus(ctx, ...)` which uses `ctx.ui.setStatus()`.                                                           |
 
 Handlers that are **not** guarded (`tool_call`, `before_agent_start`) operate on the closure-captured `state` and `definitions` without calling async `pi.*` or `ctx.*` methods, so they cannot encounter stale-context errors.
 

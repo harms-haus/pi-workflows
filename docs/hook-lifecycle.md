@@ -263,12 +263,11 @@ Same flow as normal completion, but resolves `completionMessage` if set, otherwi
 1. Checks [`wasAborted(event.messages)`](#wasaborted-check) — if the user interrupted the agent, returns `{ unload: false, persist: false }` (no enforcement).
 2. Resolves the active workflow. If resolution fails, returns no-op.
 3. Resolves the `notDoneReminder` template (or default) with variables: `{workflowName}`, `{phaseName}`, `{phaseEmoji}`, `{phaseInstructions}`, `{taskDescription}`, `{taskId}`, `{workflowKey}`.
-4. Sends an immediate countdown message via `pi.sendMessage` with `customType: "workflow:countdown"`, `display: true`, `triggerTurn: false`:
-   ```
-   Auto-continuing workflow in 3s... (type anything to interrupt)
-   ```
-5. After a **3-second `setTimeout`**, calls `pi.sendUserMessage(reminder)` to inject the full reminder as a user message. If the user started typing during the grace period, the call is caught and silently ignored.
-6. Returns `{ unload: false, persist: false }`.
+4. Delegates to `startCountdown(pi, ctx, reminder)`, which behaves differently based on `ctx.hasUI`:
+   - **With UI** — displays a `workflow-countdown` widget above the editor and uses `timerManager.startInterval(1000, ...)` to tick down from 3 seconds, updating the widget each second. When the countdown reaches zero, calls `timerManager.clearAll()`, removes the widget, and injects the reminder via `pi.sendUserMessage(reminder)`.
+   - **Without UI** — sends an immediate `pi.sendMessage` with `customType: "workflow:countdown"`, `display: true`, `triggerTurn: false`, then uses `timerManager.startTimeout(3000, ...)` to inject the reminder after 3 seconds.
+   In both paths, if the user started typing during the grace period, the `pi.sendUserMessage` call is caught and silently ignored. All timer handles are tracked by the [`TimerManager`](../src/TimerManager.ts) singleton (`timerManager`), which prevents stale callbacks and allows clean cancellation via `timerManager.clearAll()`.
+5. Returns `{ unload: false, persist: false }`.
 
 **Default not-done reminder:**
 

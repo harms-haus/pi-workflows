@@ -9,30 +9,34 @@ import type {
   GetDefinitions,
   WorkflowDefinition,
 } from "./types";
-import { advancePhase, persistState, resolveActive, isActive, loopPhase } from "./state";
+import { advancePhase, persistState, resolveActive, isActive, loopPhase, cloneState } from "./state";
+
+// ── Result Types ──
+
+/** A text content part returned by action handlers. */
+type TextPart = { type: "text"; text: string };
+
+/** Structured result returned by all action handlers. */
+type ActionResult = {
+  content: TextPart[];
+  details: Record<string, unknown>;
+  resultType?: "error" | "cancel" | "complete" | "normal";
+};
 
 // ── Shared Utility Functions ──
 
 /** Create a typed text content object (ensures `type` is narrowed to "text" literal). */
-function textPart(text: string): { type: "text"; text: string } {
+function textPart(text: string): TextPart {
   return { type: "text", text };
 }
 
 /** Standard "no active workflow" response, with an optional description message. */
-function noActiveWorkflowResponse(description?: string) {
+function noActiveWorkflowResponse(description?: string): ActionResult {
   const text =
     description ?? "No active workflow. Use /workflow {name} {description} to start one.";
   return {
     content: [textPart(text)],
     details: { active: false },
-  };
-}
-
-/** Deep-clone a WorkflowState (copies the mutable currentPath array). */
-function cloneState(state: WorkflowState): WorkflowState {
-  return {
-    ...state,
-    currentPath: state.currentPath.map((s) => ({ ...s })),
   };
 }
 
@@ -55,6 +59,7 @@ function handleStatus(
         ),
       ],
       details: { active: false, stale: true },
+      resultType: "error",
     };
   }
   const { definition, currentPhase, breadcrumb } = active;
@@ -115,6 +120,7 @@ function handleCancel(
         ),
       ],
       details: { active: true, cancelPending: true },
+      resultType: "cancel",
     };
   }
   const newState: WorkflowState = {
@@ -129,6 +135,7 @@ function handleCancel(
   return {
     content: [textPart(`Workflow cancelled: "${state.taskDescription}"`)],
     details: { active: false, cancelled: true },
+    resultType: "cancel",
   };
 }
 
@@ -136,7 +143,6 @@ function handleCancel(
 function handleNext(
   state: WorkflowState | null,
   definitions: Record<string, WorkflowDefinition>,
-  _summary: string,
   _getState: GetState,
   setState: SetState,
   pi: ExtensionAPI,
@@ -150,45 +156,45 @@ function handleNext(
     return {
       content: [textPart(`Workflow definition '${state.workflowKey}' not found.`)],
       details: { active: false },
+      resultType: "error",
     };
   }
   const { currentPhase } = active;
   const pathLenBefore = state.currentPath.length;
   const result = advancePhase(state, definitions);
-  if (!result.advanced) {
-    return {
-      content: [textPart(`Could not advance: ${currentPhase.name}`)],
-      details: { active: true },
-    };
-  }
+  const newState = result.newState;
+
   // Workflow completed (top-level done)
   if (result.to === null) {
-    const newState: WorkflowState = {
-      ...cloneState(state),
+    const doneState: WorkflowState = {
+      ...newState,
       active: false,
       completionNotified: false,
     };
-    setState(newState);
-    persistState(pi, newState);
+    setState(doneState);
+    persistState(pi, doneState);
     ctx.ui.setStatus("workflow", undefined);
     return {
       content: [textPart(`✓ Advanced: ${currentPhase.name} → DONE\n\n🎉 **All phases complete!**`)],
       details: { advanced: true, from: currentPhase.name, to: "DONE" },
+      resultType: "complete",
     };
   }
 
   // Re-resolve to get the new current phase
-  const newActive = resolveActive(state, definitions);
+  const newActive = resolveActive(newState, definitions);
   if (!newActive) {
     return {
       content: [textPart("Error: could not resolve active workflow after advance.")],
       details: {},
+      resultType: "error",
     };
   }
-  persistState(pi, state);
+  setState(newState);
+  persistState(pi, newState);
   ctx.ui.setStatus("workflow", undefined); // Will be re-set by turn_end hook
 
-  const pathLenAfter = state.currentPath.length;
+  const pathLenAfter = newState.currentPath.length;
   let advanceVerb = "Advanced";
   if (pathLenAfter > pathLenBefore) {
     // Entered a subworkflow — name it
@@ -220,7 +226,7 @@ function handleLoop(
   state: WorkflowState | null,
   definitions: Record<string, WorkflowDefinition>,
   _getState: GetState,
-  _setState: SetState,
+  setState: SetState,
   pi: ExtensionAPI,
   ctx: ExtensionContext,
 ) {
@@ -235,14 +241,18 @@ function handleLoop(
     return {
       content: [textPart(`⚠️ ${result.error}`)],
       details: { active: true, error: result.error },
+      resultType: "error",
     };
   }
-  persistState(pi, state);
-  const newActive = resolveActive(state, definitions);
+  const newState = result.newState;
+  setState(newState);
+  persistState(pi, newState);
+  const newActive = resolveActive(newState, definitions);
   if (!newActive) {
     return {
       content: [textPart("Error: could not resolve active workflow after loop.")],
       details: {},
+      resultType: "error",
     };
   }
   ctx.ui.setStatus("workflow", undefined); // will be re-set by turn_end
@@ -296,8 +306,8 @@ export function registerWorkflowTool(
       "Use workflow_step with action='cancel' to abort the current workflow.",
       "Use workflow_step with action='loop' to restart the current scope from the beginning.",
     ],
+    // eslint-disable-next-line @typescript-eslint/require-await
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
-      await Promise.resolve();
       const state = getState();
       const definitions = getDefinitions();
 
@@ -307,14 +317,9 @@ export function registerWorkflowTool(
         case "cancel":
           return handleCancel(state, definitions, getState, setState, pi, ctx);
         case "next":
-          return handleNext(state, definitions, params.summary ?? "", getState, setState, pi, ctx);
+          return handleNext(state, definitions, getState, setState, pi, ctx);
         case "loop":
           return handleLoop(state, definitions, getState, setState, pi, ctx);
-        default:
-          return {
-            content: [textPart(`Unknown action: ${params.action as string}`)],
-            details: {},
-          };
       }
     },
     renderCall(args, theme) {
@@ -328,15 +333,8 @@ export function registerWorkflowTool(
       const text = result.content[0];
       if (text.type === "text") {
         const t = text.text;
-        const isError =
-          t.startsWith("⚠️") ||
-          t.startsWith("Error:") ||
-          t.startsWith("Could not") ||
-          t.startsWith("Unknown action") ||
-          t.includes("not found");
-        const isCancel = t.includes("Confirm cancellation") || t.includes("cancelled");
-        const isComplete = t.includes("All phases complete");
-        if (isError || isCancel || isComplete) {
+        const rt = (result as ActionResult).resultType;
+        if (rt === "error" || rt === "cancel" || rt === "complete") {
           return new Text(theme.fg("toolOutput", t), 0, 0);
         }
         // For next/loop/status, show just the first line (transition summary)

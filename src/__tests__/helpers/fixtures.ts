@@ -1,135 +1,184 @@
-import type { WorkflowState, WorkflowDefinition, PhaseDefinition } from "../../types";
+import type {
+  WorkflowState,
+  WorkflowDefinition,
+  PhaseDefinition,
+  SubworkflowReference,
+} from "../../types";
 
-// ── state.test.ts Fixtures ──
+// ── Shared Builder Functions ──
 
-/** Phase 1 - state.test.ts specific. */
-export const STATE_PHASE_1: PhaseDefinition = {
-  id: "p1",
-  name: "Phase 1",
-  emoji: "1️⃣",
-  instructions: "Do phase 1",
-};
+let _phaseCounter = 0;
 
-/** Phase 2 - state.test.ts specific. */
-export const STATE_PHASE_2: PhaseDefinition = {
-  id: "p2",
-  name: "Phase 2",
-  emoji: "2️⃣",
-  instructions: "Do phase 2",
-};
+/**
+ * Builds a valid phase definition with sensible defaults.
+ * Auto-increments id/name if not provided.
+ */
+export function makePhaseDef(overrides: Partial<PhaseDefinition> = {}): PhaseDefinition {
+  const n = ++_phaseCounter;
+  return {
+    id: `p${n}`,
+    name: `Phase ${n}`,
+    emoji: "1️⃣",
+    instructions: `Do phase ${n}`,
+    ...overrides,
+  };
+}
 
-/** Phase 3 - state.test.ts specific. */
-export const STATE_PHASE_3: PhaseDefinition = {
-  id: "p3",
-  name: "Phase 3",
-  emoji: "3️⃣",
-  instructions: "Do phase 3",
-};
+/**
+ * Resets the auto-increment counter for makePhaseDef.
+ * Call in beforeEach if your test relies on deterministic phase ids.
+ */
+export function resetPhaseCounter(): void {
+  _phaseCounter = 0;
+}
 
-/** Subworkflow Phase 1 - state.test.ts specific. */
-export const STATE_SUB_PHASE_1: PhaseDefinition = {
-  id: "sp1",
-  name: "Sub Phase 1",
-  emoji: "🔨",
-  instructions: "Build",
-};
+/**
+ * Builds a valid workflow definition with sensible defaults.
+ * Creates a single default phase if none provided.
+ */
+export function makeWorkflowDef(overrides: Partial<WorkflowDefinition> = {}): WorkflowDefinition {
+  return {
+    name: "Test Workflow",
+    commandName: "test",
+    initialMessage: "Start",
+    phases: [makePhaseDef()],
+    ...overrides,
+  };
+}
 
-/** Subworkflow Phase 2 - state.test.ts specific. */
-export const STATE_SUB_PHASE_2: PhaseDefinition = {
-  id: "sp2",
-  name: "Sub Phase 2",
-  emoji: "👁️",
-  instructions: "Review",
-};
+/**
+ * Builds a subworkflow reference to another workflow.
+ */
+export function makeSubworkflowRef(
+  overrides: Partial<SubworkflowReference> = {},
+): SubworkflowReference {
+  return {
+    subworkflow: true,
+    workflowKey: "sub",
+    resolved: null,
+    ...overrides,
+  };
+}
 
-/** Creates a subworkflow definition for state.test.ts. */
-export function makeStateSubDef(): WorkflowDefinition {
+/**
+ * Builds a valid workflow state with sensible defaults.
+ */
+export function makeWorkflowState(overrides: Partial<WorkflowState> = {}): WorkflowState {
+  return {
+    active: true,
+    workflowKey: "test-wf",
+    currentPath: [{ workflowKey: "test-wf", phaseIndex: 0 }],
+    globalStepCount: 0,
+    taskId: "wf-test-123",
+    taskDescription: "Test task",
+    startedAt: Date.now(),
+    completionNotified: false,
+    cancelled: false,
+    ...overrides,
+  };
+}
+
+// ── Shared Phase Instances ──
+// Used by both STATE_* and TOOL_* families (identical definitions).
+
+const PHASE_1: PhaseDefinition = { id: "p1", name: "Phase 1", emoji: "1️⃣", instructions: "Do phase 1" };
+const PHASE_2: PhaseDefinition = { id: "p2", name: "Phase 2", emoji: "2️⃣", instructions: "Do phase 2" };
+const PHASE_3: PhaseDefinition = { id: "p3", name: "Phase 3", emoji: "3️⃣", instructions: "Do phase 3" };
+const SUB_PHASE_1: PhaseDefinition = { id: "sp1", name: "Sub Phase 1", emoji: "🔨", instructions: "Build" };
+const SUB_PHASE_2: PhaseDefinition = { id: "sp2", name: "Sub Phase 2", emoji: "👁️", instructions: "Review" };
+
+// ── Shared Workflow Builders ──
+
+/** Creates a subworkflow definition (show: "workflows"). */
+function _makeSubDef(): WorkflowDefinition {
   return {
     name: "Sub",
     commandName: "sub",
     initialMessage: "Start",
     show: "workflows",
-    phases: [STATE_SUB_PHASE_1, STATE_SUB_PHASE_2],
+    phases: [SUB_PHASE_1, SUB_PHASE_2],
   };
 }
 
-/** Creates a linear workflow definition for state.test.ts. */
-export function makeStateLinearDef(): WorkflowDefinition {
+/** Creates a linear 3-phase workflow definition. */
+function _makeLinearDef(): WorkflowDefinition {
   return {
     name: "Linear",
     commandName: "lin",
     initialMessage: "Start",
-    phases: [STATE_PHASE_1, STATE_PHASE_2, STATE_PHASE_3],
+    phases: [PHASE_1, PHASE_2, PHASE_3],
   };
 }
 
-/** Creates a parent workflow definition for state.test.ts. */
-export function makeStateParentDef(): WorkflowDefinition {
-  const subDef = makeStateSubDef();
+/** Creates a parent workflow definition with a subworkflow in the middle. */
+function _makeParentDef(): WorkflowDefinition {
+  const subDef = _makeSubDef();
   return {
     name: "Parent",
     commandName: "par",
     initialMessage: "Start",
     phases: [
-      STATE_PHASE_1,
+      PHASE_1,
       { subworkflow: true, workflowKey: "sub", resolved: subDef },
-      STATE_PHASE_3,
+      PHASE_3,
     ],
   };
 }
 
-/** Creates the complete definitions map for state.test.ts. */
-export function makeStateAllDefs(): Record<string, WorkflowDefinition> {
+/**
+ * Builds a definitions map with common test workflows.
+ * Pass a partial map to add/override entries, or omit for the full default set.
+ */
+export function makeDefinitionsMap(
+  workflows?: Record<string, WorkflowDefinition>,
+): Record<string, WorkflowDefinition> {
   return {
-    linear: makeStateLinearDef(),
-    parent: makeStateParentDef(),
-    sub: makeStateSubDef(),
+    linear: _makeLinearDef(),
+    parent: _makeParentDef(),
+    sub: _makeSubDef(),
+    ...workflows,
   };
+}
+
+// ── state.test.ts Fixtures ──
+
+export const STATE_PHASE_1 = PHASE_1;
+export const STATE_PHASE_2 = PHASE_2;
+export const STATE_PHASE_3 = PHASE_3;
+export const STATE_SUB_PHASE_1 = SUB_PHASE_1;
+export const STATE_SUB_PHASE_2 = SUB_PHASE_2;
+
+export function makeStateSubDef(): WorkflowDefinition {
+  return _makeSubDef();
+}
+
+export function makeStateLinearDef(): WorkflowDefinition {
+  return _makeLinearDef();
+}
+
+export function makeStateParentDef(): WorkflowDefinition {
+  return _makeParentDef();
+}
+
+export function makeStateAllDefs(): Record<string, WorkflowDefinition> {
+  return makeDefinitionsMap();
 }
 
 // ── tool.test.ts Fixtures ──
 
-/** Phase 1 - tool.test.ts specific. */
-export const TOOL_PHASE_1: PhaseDefinition = {
-  id: "p1",
-  name: "Phase 1",
-  emoji: "1️⃣",
-  instructions: "Do first",
-};
+// NOTE: TOOL_PHASE_* constants intentionally have different instructions
+// text from STATE_PHASE_*. Tests may assert on the exact instructions string,
+// so we keep distinct objects for backward compatibility.
+const _TOOL_PHASE_1: PhaseDefinition = { ...PHASE_1, instructions: "Do first" };
+const _TOOL_PHASE_2: PhaseDefinition = { ...PHASE_2, instructions: "Do second" };
+const _TOOL_PHASE_3: PhaseDefinition = { ...PHASE_3, instructions: "Do third" };
 
-/** Phase 2 - tool.test.ts specific. */
-export const TOOL_PHASE_2: PhaseDefinition = {
-  id: "p2",
-  name: "Phase 2",
-  emoji: "2️⃣",
-  instructions: "Do second",
-};
+export const TOOL_PHASE_1 = _TOOL_PHASE_1;
+export const TOOL_PHASE_2 = _TOOL_PHASE_2;
+export const TOOL_PHASE_3 = _TOOL_PHASE_3;
+export const TOOL_SUB_PHASE_1 = SUB_PHASE_1;
+export const TOOL_SUB_PHASE_2 = SUB_PHASE_2;
 
-/** Phase 3 - tool.test.ts specific. */
-export const TOOL_PHASE_3: PhaseDefinition = {
-  id: "p3",
-  name: "Phase 3",
-  emoji: "3️⃣",
-  instructions: "Do third",
-};
-
-/** Subworkflow Phase 1 - tool.test.ts specific. */
-export const TOOL_SUB_PHASE_1: PhaseDefinition = {
-  id: "sp1",
-  name: "Sub Phase 1",
-  emoji: "🔨",
-  instructions: "Build",
-};
-
-/** Subworkflow Phase 2 - tool.test.ts specific. */
-export const TOOL_SUB_PHASE_2: PhaseDefinition = {
-  id: "sp2",
-  name: "Sub Phase 2",
-  emoji: "👁️",
-  instructions: "Review",
-};
-
-/** Creates a subworkflow definition for tool.test.ts. */
 export function makeToolSubDef(): WorkflowDefinition {
   return {
     name: "Sub",
@@ -140,7 +189,6 @@ export function makeToolSubDef(): WorkflowDefinition {
   };
 }
 
-/** Creates a linear workflow definition for tool.test.ts. */
 export function makeToolLinearDef(): WorkflowDefinition {
   return {
     name: "Linear",
@@ -150,7 +198,6 @@ export function makeToolLinearDef(): WorkflowDefinition {
   };
 }
 
-/** Creates a parent workflow definition for tool.test.ts. */
 export function makeToolParentDef(): WorkflowDefinition {
   const subDef = makeToolSubDef();
   return {
@@ -165,7 +212,6 @@ export function makeToolParentDef(): WorkflowDefinition {
   };
 }
 
-/** Creates a workflow definition with looping disabled for tool.test.ts. */
 export function makeToolNoLoopDef(): WorkflowDefinition {
   return {
     name: "NoLoop",
@@ -176,7 +222,6 @@ export function makeToolNoLoopDef(): WorkflowDefinition {
   };
 }
 
-/** Creates the complete definitions map for tool.test.ts. */
 export function makeToolAllDefs(): Record<string, WorkflowDefinition> {
   return {
     linear: makeToolLinearDef(),
@@ -186,44 +231,24 @@ export function makeToolAllDefs(): Record<string, WorkflowDefinition> {
   };
 }
 
-/** Creates an active workflow state for tool.test.ts. */
 export function makeToolActiveState(
   workflowKey: string,
   overrides: Partial<WorkflowState> = {},
 ): WorkflowState {
-  return {
-    active: true,
+  return makeWorkflowState({
     workflowKey,
     currentPath: [{ workflowKey, phaseIndex: 0 }],
-    globalStepCount: 0,
-    taskId: "wf-test-123",
-    taskDescription: "Test task",
-    startedAt: Date.now(),
-    completionNotified: false,
-    cancelled: false,
     ...overrides,
-  };
+  });
 }
 
 // ── prompts.test.ts Fixtures ──
 
-/** Phase 1 - prompts.test.ts specific. */
-export const PROMPTS_PHASE_1: PhaseDefinition = {
-  id: "p1",
-  name: "Phase 1",
-  emoji: "1️⃣",
-  instructions: "Do phase 1 stuff",
-};
+const _PROMPTS_PHASE_1: PhaseDefinition = { ...PHASE_1, instructions: "Do phase 1 stuff" };
+const _PROMPTS_PHASE_2: PhaseDefinition = { ...PHASE_2, instructions: "Do phase 2 stuff" };
 
-/** Phase 2 - prompts.test.ts specific. */
-export const PROMPTS_PHASE_2: PhaseDefinition = {
-  id: "p2",
-  name: "Phase 2",
-  emoji: "2️⃣",
-  instructions: "Do phase 2 stuff",
-};
-
-/** Phase with profiles - prompts.test.ts specific. */
+export const PROMPTS_PHASE_1 = _PROMPTS_PHASE_1;
+export const PROMPTS_PHASE_2 = _PROMPTS_PHASE_2;
 export const PROMPTS_PHASE_WITH_PROFILES: PhaseDefinition = {
   id: "pp",
   name: "Profile Phase",
@@ -232,7 +257,6 @@ export const PROMPTS_PHASE_WITH_PROFILES: PhaseDefinition = {
   availableProfiles: ["coder", "reviewer"],
 };
 
-/** Creates a linear workflow definition for prompts.test.ts. */
 export function makePromptsLinearDef(): WorkflowDefinition {
   return {
     name: "Linear",
@@ -244,23 +268,12 @@ export function makePromptsLinearDef(): WorkflowDefinition {
 
 // ── command.test.ts Fixtures ──
 
-/** Phase 1 - command.test.ts specific. */
-export const CMD_PHASE_1: PhaseDefinition = {
-  id: "p1",
-  name: "Phase 1",
-  emoji: "1️⃣",
-  instructions: "Do stuff",
-};
+const _CMD_PHASE_1: PhaseDefinition = { ...PHASE_1, instructions: "Do stuff" };
+const _CMD_SUB_PHASE_1: PhaseDefinition = { ...SUB_PHASE_1 };
 
-/** Subworkflow Phase 1 - command.test.ts specific. */
-export const CMD_SUB_PHASE_1: PhaseDefinition = {
-  id: "sp1",
-  name: "Sub Phase 1",
-  emoji: "🔨",
-  instructions: "Build",
-};
+export const CMD_PHASE_1 = _CMD_PHASE_1;
+export const CMD_SUB_PHASE_1 = _CMD_SUB_PHASE_1;
 
-/** Test workflow definition for command.test.ts. */
 export const CMD_TEST_DEFINITION: WorkflowDefinition = {
   name: "Test",
   commandName: "test-cmd",
@@ -269,7 +282,6 @@ export const CMD_TEST_DEFINITION: WorkflowDefinition = {
   phases: [CMD_PHASE_1],
 };
 
-/** Subworkflow definition for command.test.ts. */
 export const CMD_SUB_DEFINITION: WorkflowDefinition = {
   name: "Sub",
   commandName: "sub-cmd",
@@ -278,7 +290,6 @@ export const CMD_SUB_DEFINITION: WorkflowDefinition = {
   phases: [CMD_SUB_PHASE_1],
 };
 
-/** Creates command test definitions map. */
 export function makeCommandDefs(): Record<string, WorkflowDefinition> {
   return {
     "test-workflow": CMD_TEST_DEFINITION,
@@ -309,16 +320,5 @@ export function makeDefinition(): Record<string, WorkflowDefinition> {
 
 /** Creates a minimal active workflow state for testing. */
 export function makeActiveState(overrides: Partial<WorkflowState> = {}): WorkflowState {
-  return {
-    active: true,
-    workflowKey: "test-wf",
-    currentPath: [{ workflowKey: "test-wf", phaseIndex: 0 }],
-    globalStepCount: 0,
-    taskId: "wf-test-123",
-    taskDescription: "Test task",
-    startedAt: Date.now(),
-    completionNotified: false,
-    cancelled: false,
-    ...overrides,
-  };
+  return makeWorkflowState(overrides);
 }
