@@ -29,6 +29,7 @@ export function buildContextPrompt(active: ActiveWorkflow): string {
 
   // Progress
   const innerSegment = state.currentPath[state.currentPath.length - 1];
+  if (!innerSegment) return "";
   // Determine inner phase count for the innermost scope
   const innerTotal =
     state.currentPath.length > 1
@@ -118,7 +119,8 @@ function collectAllProfiles(definition: { phases: PhaseEntry[] }): string[] {
  */
 function getPreviousPhaseName(definition: { phases: PhaseEntry[] }, currentIndex: number): string {
   if (currentIndex <= 0) return "(start)";
-  return phaseEntryName(definition.phases[currentIndex - 1]);
+  const prev = definition.phases[currentIndex - 1];
+  return prev ? phaseEntryName(prev) : "(start)";
 }
 
 // ── Default messages for agent_end hook ──

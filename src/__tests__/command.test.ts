@@ -532,7 +532,7 @@ describe("registerCancelWorkflowCommand", () => {
 
       expect(persistState).toHaveBeenCalledTimes(1);
       const persistedState = (persistState as ReturnType<typeof vi.fn>).mock
-        .calls[0][1] as WorkflowState;
+        .calls[0]![1] as WorkflowState;
       expect(persistedState.active).toBe(false);
       expect(persistedState.cancelled).toBe(true);
     });

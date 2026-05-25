@@ -98,7 +98,9 @@ function validatePhases(key: string, def: WorkflowDefinition): string | null {
   }
   const seenIds = new Set<string>();
   for (let i = 0; i < def.phases.length; i++) {
-    const err = validatePhaseEntry(key, def.phases[i], i, seenIds);
+    const phase = def.phases[i];
+    if (!phase) continue;
+    const err = validatePhaseEntry(key, phase, i, seenIds);
     if (err) return err;
   }
   return null;
@@ -164,7 +166,9 @@ function buildAdjacencyList(
   const adj = new Map<string, string[]>();
   for (const key of Object.keys(definitions)) {
     const neighbors: string[] = [];
-    for (const phase of definitions[key].phases) {
+    const def = definitions[key];
+    if (!def) continue;
+    for (const phase of def.phases) {
       if (isSubworkflowRef(phase) && phase.workflowKey in definitions) {
         neighbors.push(phase.workflowKey);
       }
@@ -227,6 +231,7 @@ export function detectCycles(definitions: Record<string, WorkflowDefinition>): s
 
     while (stack.length > 0) {
       const top = stack[stack.length - 1];
+      if (top === undefined) break;
 
       if (top.phase === "enter") {
         color.set(top.key, GRAY);
@@ -238,6 +243,7 @@ export function detectCycles(definitions: Record<string, WorkflowDefinition>): s
       const neighbors = adj.get(top.key) ?? [];
       if (top.neighborIdx < neighbors.length) {
         const neighbor = neighbors[top.neighborIdx];
+        if (!neighbor) continue;
         top.neighborIdx++;
         processNeighbor(neighbor, top.key, parent, color, stack, errors);
         continue;

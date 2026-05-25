@@ -72,10 +72,10 @@ describe("advancePhase — linear", () => {
     expect(result.from).toBe("Phase 1");
     expect(result.to).toBe("Phase 2");
     // Original state is NOT mutated
-    expect(state.currentPath[0].phaseIndex).toBe(0);
+    expect(state.currentPath[0]!.phaseIndex).toBe(0);
     expect(state.globalStepCount).toBe(0);
     // New state has advanced
-    expect(result.newState.currentPath[0].phaseIndex).toBe(1);
+    expect(result.newState.currentPath[0]!.phaseIndex).toBe(1);
     expect(result.newState.globalStepCount).toBe(1);
   });
 
@@ -86,7 +86,7 @@ describe("advancePhase — linear", () => {
     expect(result.advanced).toBe(true);
     expect(result.from).toBe("Phase 2");
     expect(result.to).toBe("Phase 3");
-    expect(result.newState.currentPath[0].phaseIndex).toBe(2);
+    expect(result.newState.currentPath[0]!.phaseIndex).toBe(2);
     expect(result.newState.globalStepCount).toBe(2);
   });
 
@@ -138,7 +138,7 @@ describe("advancePhase — breakout", () => {
     expect(result.advanced).toBe(true);
     expect(result.newState.currentPath).toHaveLength(1);
     // Parent should have advanced past the subworkflow ref to phase3 (index 2)
-    expect(result.newState.currentPath[0].phaseIndex).toBe(2);
+    expect(result.newState.currentPath[0]!.phaseIndex).toBe(2);
   });
 
   it("path length decreases", () => {
@@ -161,18 +161,18 @@ describe("advancePhase — multi-level", () => {
     const r1 = advancePhase(state0, allDefs);
     const state1 = r1.newState;
     expect(state1.currentPath).toHaveLength(2);
-    expect(state1.currentPath[1].phaseIndex).toBe(0);
+    expect(state1.currentPath[1]!.phaseIndex).toBe(0);
 
     // Step 2: advance within sub → sub[1]
     const state2 = advancePhase(state1, allDefs).newState;
-    expect(state2.currentPath[1].phaseIndex).toBe(1);
+    expect(state2.currentPath[1]!.phaseIndex).toBe(1);
 
     // Step 3: breakout from sub → back to parent at index 2 (phase3)
     const r3 = advancePhase(state2, allDefs);
     const state3 = r3.newState;
     expect(r3.advanced).toBe(true);
     expect(state3.currentPath).toHaveLength(1);
-    expect(state3.currentPath[0].phaseIndex).toBe(2);
+    expect(state3.currentPath[0]!.phaseIndex).toBe(2);
 
     // Step 4: advance on last parent phase → DONE
     const final = advancePhase(state3, allDefs);
@@ -193,7 +193,7 @@ describe("loopPhase", () => {
     const result = loopPhase(state1, allDefs);
     expect(result.looped).toBe(true);
     if (!result.looped) throw new Error("expected looped");
-    expect(result.newState.currentPath[0].phaseIndex).toBe(0);
+    expect(result.newState.currentPath[0]!.phaseIndex).toBe(0);
     expect(result.newState.globalStepCount).toBe(2);
   });
 
@@ -224,7 +224,7 @@ describe("loopPhase", () => {
     expect(result.looped).toBe(true);
     if (!result.looped) throw new Error("expected looped");
     // Inner scope reset to 0
-    expect(result.newState.currentPath[1].phaseIndex).toBe(0);
+    expect(result.newState.currentPath[1]!.phaseIndex).toBe(0);
     // Path still has 2 segments
     expect(result.newState.currentPath).toHaveLength(2);
   });
@@ -270,12 +270,12 @@ describe("resolveActive — nested", () => {
     expect(active).not.toBeNull();
     expect(active!.breadcrumb).toHaveLength(2);
     // First entry is the top-level parent
-    expect(active!.breadcrumb[0].workflowKey).toBe("parent");
+    expect(active!.breadcrumb[0]!.workflowKey).toBe("parent");
     // Second entry is the innermost subworkflow
-    expect(active!.breadcrumb[1].workflowKey).toBe("sub");
+    expect(active!.breadcrumb[1]!.workflowKey).toBe("sub");
     // Innermost breadcrumb should have the current phase name and emoji
-    expect(active!.breadcrumb[1].phaseName).toBe("Sub Phase 1");
-    expect(active!.breadcrumb[1].emoji).toBe("🔨");
+    expect(active!.breadcrumb[1]!.phaseName).toBe("Sub Phase 1");
+    expect(active!.breadcrumb[1]!.emoji).toBe("🔨");
   });
 });
 
@@ -290,7 +290,7 @@ describe("resolveActive — edge cases", () => {
 
   it("out-of-bounds phaseIndex → returns null", () => {
     const state = createInitialState("linear", "desc");
-    state.currentPath[0].phaseIndex = 999;
+    state.currentPath[0]!.phaseIndex = 999;
     const result = resolveActive(state, allDefs);
     expect(result).toBeNull();
   });
@@ -695,7 +695,7 @@ describe("advancePhase — breakout + auto-enter (two subworkflows)", () => {
     expect(r2.advanced).toBe(true);
     expect(r2.from).toBe("Sub Phase 1");
     expect(r2.to).toBe("Sub Phase 2");
-    expect(r2.newState.currentPath[1].phaseIndex).toBe(1);
+    expect(r2.newState.currentPath[1]!.phaseIndex).toBe(1);
 
     // Step 3: breakout from sub, auto-enter sub2 → sub2[0]
     const r3 = advancePhase(r2.newState, ptsDefs);
@@ -711,7 +711,7 @@ describe("advancePhase — breakout + auto-enter (two subworkflows)", () => {
     expect(r4.from).toBe("Sub2 Phase A");
     expect(r4.to).toBe("Phase 3");
     expect(r4.newState.currentPath).toHaveLength(1);
-    expect(r4.newState.currentPath[0].phaseIndex).toBe(3);
+    expect(r4.newState.currentPath[0]!.phaseIndex).toBe(3);
 
     // Step 5: advance on last parent phase → DONE
     const r5 = advancePhase(r4.newState, ptsDefs);
@@ -744,11 +744,11 @@ describe("loopPhase — subworkflow scope", () => {
     expect(result.looped).toBe(true);
     if (!result.looped) throw new Error("expected looped");
     // Inner scope reset to 0
-    expect(result.newState.currentPath[1].phaseIndex).toBe(0);
+    expect(result.newState.currentPath[1]!.phaseIndex).toBe(0);
     // Path still has 2 segments
     expect(result.newState.currentPath).toHaveLength(2);
     // Parent phaseIndex unchanged
-    expect(result.newState.currentPath[0].phaseIndex).toBe(1);
+    expect(result.newState.currentPath[0]!.phaseIndex).toBe(1);
   });
 });
 
@@ -810,7 +810,7 @@ describe("advancePhase — breakout when subworkflow is parent's last phase", ()
     expect(r3.to).toBeNull();
     expect(r3.newState.active).toBe(false);
     expect(r3.newState.currentPath).toHaveLength(1);
-    expect(r3.newState.currentPath[0].phaseIndex).toBe(2); // past end
+    expect(r3.newState.currentPath[0]!.phaseIndex).toBe(2); // past end
   });
 
   it("parent whose only phase is a subworkflow → completes after subworkflow finishes", () => {
@@ -896,7 +896,7 @@ describe("advancePhase — multi-level breakout", () => {
     expect(r2.to).toBeNull();
     expect(r2.newState.active).toBe(false);
     expect(r2.newState.currentPath).toHaveLength(1);
-    expect(r2.newState.currentPath[0].phaseIndex).toBe(2);
+    expect(r2.newState.currentPath[0]!.phaseIndex).toBe(2);
   });
 });
 
@@ -1228,7 +1228,7 @@ describe("immutability", () => {
 
     // state0 unchanged
     expect(state0.currentPath).toHaveLength(1);
-    expect(state0.currentPath[0].phaseIndex).toBe(0);
+    expect(state0.currentPath[0]!.phaseIndex).toBe(0);
 
     // state1 has subworkflow entered
     expect(state1.currentPath).toHaveLength(2);
@@ -1238,10 +1238,10 @@ describe("immutability", () => {
 
     // state1 unchanged
     expect(state1.currentPath).toHaveLength(2);
-    expect(state1.currentPath[1].phaseIndex).toBe(0);
+    expect(state1.currentPath[1]!.phaseIndex).toBe(0);
 
     // state2 advanced within sub
-    expect(state2.currentPath[1].phaseIndex).toBe(1);
+    expect(state2.currentPath[1]!.phaseIndex).toBe(1);
   });
 });
 

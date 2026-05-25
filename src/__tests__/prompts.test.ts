@@ -45,9 +45,9 @@ function makeActive(
   };
   const defs: Record<string, WorkflowDefinition> = { test: def };
   // Use resolveActive-like logic to build the ActiveWorkflow
-  const top = state.currentPath[state.currentPath.length - 1];
+  const top = state.currentPath[state.currentPath.length - 1]!;
   const topDef = defs[top.workflowKey] ?? def;
-  const currentEntry = topDef.phases[top.phaseIndex];
+  const currentEntry = topDef.phases[top.phaseIndex]!;
   const currentPhase = currentEntry as PhaseDefinition;
   const nextPhase: PhaseEntry | null = topDef.phases[top.phaseIndex + 1] ?? null;
 
@@ -126,9 +126,9 @@ describe("buildContextPrompt", () => {
     };
 
     // Resolve active properly using the state module logic
-    const innerSegment = state.currentPath[state.currentPath.length - 1];
-    const innerDef = defs[innerSegment.workflowKey];
-    const currentEntry = innerDef.phases[innerSegment.phaseIndex];
+    const innerSegment = state.currentPath[state.currentPath.length - 1]!;
+    const innerDef = defs[innerSegment.workflowKey]!;
+    const currentEntry = innerDef.phases[innerSegment.phaseIndex]!;
     const currentPhase = currentEntry as PhaseDefinition;
     const nextPhase: PhaseEntry | null = innerDef.phases[innerSegment.phaseIndex + 1] ?? null;
 
@@ -278,7 +278,7 @@ describe("getPreviousPhaseName (via buildContextPrompt)", () => {
     const correctedActive: ActiveWorkflow = {
       ...active,
       currentPhase: defWithPrev.phases[1] as PhaseDefinition,
-      currentPhaseEntry: defWithPrev.phases[1],
+      currentPhaseEntry: defWithPrev.phases[1]!,
       nextPhase: null,
     };
     const prompt = buildContextPrompt(correctedActive);
@@ -333,9 +333,9 @@ describe("buildContextPrompt — nested progress with SubworkflowRef", () => {
     };
 
     const defs: Record<string, WorkflowDefinition> = { parent: parentDef, sub: subDef };
-    const innerSegment = state.currentPath[state.currentPath.length - 1];
-    const innerDef = defs[innerSegment.workflowKey];
-    const currentEntry = innerDef.phases[innerSegment.phaseIndex];
+    const innerSegment = state.currentPath[state.currentPath.length - 1]!;
+    const innerDef = defs[innerSegment.workflowKey]!;
+    const currentEntry = innerDef.phases[innerSegment.phaseIndex]!;
     const currentPhase = currentEntry as PhaseDefinition;
     const nextPhase: PhaseEntry | null = innerDef.phases[innerSegment.phaseIndex + 1] ?? null;
 

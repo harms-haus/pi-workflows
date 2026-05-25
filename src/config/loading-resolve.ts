@@ -24,7 +24,7 @@ export function removeCycles(
   for (const msg of cycleErrors) {
     console.warn(`[pi-workflows] ${msg}`);
     const match = msg.match(/^Cycle detected: (.+?)\. /);
-    if (match) {
+    if (match && match[1] !== undefined) {
       for (const k of match[1].split(" → ")) {
         cycleKeys.add(k);
       }
@@ -46,7 +46,6 @@ export function resolveSubworkflowRefs(
       for (const phase of def.phases) {
         if (isSubworkflowRef(phase) && phase.resolved === null) {
           const targetDef = current[phase.workflowKey];
-          // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- runtime guard: Record values can be undefined at runtime
           if (!(phase.workflowKey in current) || !targetDef) {
             console.warn(
               `[pi-workflows] Workflow "${key}" references non-existent subworkflow "${phase.workflowKey}". Skipping.`,

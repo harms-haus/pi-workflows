@@ -26,6 +26,7 @@ export function updateStatus(
     !state ||
     !state.active ||
     state.currentPath.length === 0 ||
+    !state.currentPath[0] ||
     !(state.currentPath[0].workflowKey in definitions)
   ) {
     ctx.ui.setStatus("workflow", undefined);
@@ -35,12 +36,17 @@ export function updateStatus(
 
   // First part: top-level workflow name only (no progress)
   const topDef = definitions[state.currentPath[0].workflowKey];
+  if (!topDef) return;
   parts.push(topDef.name);
 
   // For each path segment, show progress at that level
   for (let i = 0; i < state.currentPath.length; i++) {
     const seg = state.currentPath[i];
-    const segDef = definitions[seg.workflowKey];
+    const segDef = seg ? definitions[seg.workflowKey] : undefined;
+    if (!seg || !segDef) {
+      ctx.ui.setStatus("workflow", undefined);
+      return;
+    }
     const entry = seg.phaseIndex < segDef.phases.length ? segDef.phases[seg.phaseIndex] : null;
     if (!entry) {
       ctx.ui.setStatus("workflow", undefined);
@@ -131,8 +137,9 @@ function wasAborted(messages: AgentEndEvent["messages"]): boolean {
   // Walk messages in reverse to find the last assistant message
   for (let i = messages.length - 1; i >= 0; i--) {
     const msg = messages[i];
+    if (!msg) continue;
     if (msg.role === "assistant") {
-      return msg.stopReason === "aborted";
+      return (msg as { stopReason?: string }).stopReason === "aborted";
     }
   }
   // No assistant message found — shouldn't happen, but treat as not aborted
@@ -225,6 +232,7 @@ export function handleAgentEnd(
   // Case A: Workflow just reached DONE (not yet notified)
   if (!state.active && !state.completionNotified) {
     const definition = definitions[state.workflowKey];
+    if (!definition) return noOp;
     const template = state.cancelled
       ? (definition.completionMessage ?? DEFAULT_CANCELLED_MESSAGE)
       : (definition.completionMessage ?? DEFAULT_COMPLETION_MESSAGE);

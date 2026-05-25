@@ -1,5 +1,5 @@
 {
-  "name": "pi-workflows",
+  "name": "@harms-haus/pi-workflows",
   "version": "1.0.0",
   "description": "Workflow management extension for the pi coding agent",
   "type": "module",
@@ -16,7 +16,7 @@
     "access": "public"
   },
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.0.0"
   },
   "pi": {
     "extensions": [
@@ -43,12 +43,12 @@
   },
   "license": "MIT",
   "peerDependencies": {
-    "@earendil-works/pi-coding-agent": "^0.74.0"
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
   },
   "dependencies": {
-    "@earendil-works/pi-ai": "^0.74.0",
-    "@earendil-works/pi-tui": "^0.74.0",
-    "typebox": "^1.1.24",
     "yaml": "^2.8.2"
   },
   "repository": {
@@ -56,13 +56,14 @@
     "url": "git+https://github.com/harms-haus/pi-workflows.git"
   },
   "devDependencies": {
-    "@eslint/js": "^9.0.0",
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22.0.0",
     "@vitest/coverage-v8": "^4.1.6",
-    "eslint": "^9.0.0",
+    "eslint": "^10.4.0",
     "eslint-config-prettier": "^10.1.8",
-    "prettier": "^3.0.0",
-    "typescript": "^5.0.0",
-    "typescript-eslint": "^8.0.0",
+    "prettier": "^3.8.3",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.59.3",
     "vitest": "^4.1.6"
   }
 }

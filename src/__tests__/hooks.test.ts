@@ -739,7 +739,7 @@ describe("handleAgentEnd — normal completion path", () => {
       { triggerTurn: false },
     );
     // Verify content contains resolved template values
-    const callArgs = sendMessage.mock.calls[0][0] as { content: string };
+    const callArgs = sendMessage.mock.calls[0]![0] as { content: string };
     expect(callArgs.content).toContain("Build the thing");
     expect(callArgs.content).toContain("task-42");
 
@@ -782,7 +782,7 @@ describe("handleAgentEnd — normal completion path", () => {
       messages: [mockMsg("stop")],
     });
 
-    const callArgs = sendMessage.mock.calls[0][0] as { content: string };
+    const callArgs = sendMessage.mock.calls[0]![0] as { content: string };
     expect(callArgs.content).toBe("🎉 Custom WF is done! Task: Special task");
   });
 
@@ -807,7 +807,7 @@ describe("handleAgentEnd — normal completion path", () => {
       messages: [mockMsg("stop")],
     });
 
-    const callArgs = sendMessage.mock.calls[0][0] as { content: string };
+    const callArgs = sendMessage.mock.calls[0]![0] as { content: string };
     // Should contain the default template markers
     expect(callArgs.content).toContain("Test Workflow Complete");
     expect(callArgs.content).toContain("desc");
@@ -846,7 +846,7 @@ describe("handleAgentEnd — cancellation path", () => {
       },
       { triggerTurn: false },
     );
-    const callArgs = sendMessage.mock.calls[0][0] as { content: string };
+    const callArgs = sendMessage.mock.calls[0]![0] as { content: string };
     expect(callArgs.content).toContain("Cancelled task");
     expect(callArgs.content).toContain("task-55");
 
@@ -888,7 +888,7 @@ describe("handleAgentEnd — cancellation path", () => {
       messages: [mockMsg("stop")],
     });
 
-    const callArgs = sendMessage.mock.calls[0][0] as { content: string };
+    const callArgs = sendMessage.mock.calls[0]![0] as { content: string };
     // Custom completionMessage takes precedence over DEFAULT_CANCELLED_MESSAGE
     expect(callArgs.content).toBe("Custom cancel: WF");
   });
@@ -914,7 +914,7 @@ describe("handleAgentEnd — cancellation path", () => {
       messages: [mockMsg("stop")],
     });
 
-    const callArgs = sendMessage.mock.calls[0][0] as { content: string };
+    const callArgs = sendMessage.mock.calls[0]![0] as { content: string };
     expect(callArgs.content).toContain("Test Workflow Cancelled");
   });
 
@@ -1199,7 +1199,7 @@ describe("handleAgentEnd — non-UI countdown tracked by TimerManager", () => {
     // Now it fires
     expect(sendUserMessage).toHaveBeenCalledTimes(1);
     // The message should contain phase info from the reminder template
-    const sentMessage = sendUserMessage.mock.calls[0][0] as string;
+    const sentMessage = sendUserMessage.mock.calls[0]![0] as string;
     expect(sentMessage).toContain("Phase 1");
   });
 });

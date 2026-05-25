@@ -136,7 +136,7 @@ describe("session_start handler", () => {
     mockLoadWorkflows.mockReturnValue(defs);
     mockReconstructState.mockReturnValue(state);
 
-    await handlers["session_start"]({}, ctx);
+    await handlers["session_start"]!({}, ctx);
 
     expect(mockTimerManagerClearAll).toHaveBeenCalled();
     expect(mockLoadWorkflows).toHaveBeenCalledWith(ctx.cwd);
@@ -151,7 +151,7 @@ describe("session_start handler", () => {
     });
 
     // Should NOT throw
-    expect(() => handlers["session_start"]({}, ctx)).not.toThrow();
+    expect(() => handlers["session_start"]!({}, ctx)).not.toThrow();
   });
 
   it("re-throws non-stale errors", () => {
@@ -160,7 +160,7 @@ describe("session_start handler", () => {
       throw new Error("disk failure");
     });
 
-    expect(() => handlers["session_start"]({}, ctx)).toThrow("disk failure");
+    expect(() => handlers["session_start"]!({}, ctx)).toThrow("disk failure");
   });
 });
 
@@ -173,7 +173,7 @@ describe("session_tree handler", () => {
     mockLoadWorkflows.mockReturnValue(defs);
     mockReconstructState.mockReturnValue(state);
 
-    await handlers["session_tree"]({}, ctx);
+    await handlers["session_tree"]!({}, ctx);
 
     expect(mockTimerManagerClearAll).toHaveBeenCalled();
     expect(mockLoadWorkflows).toHaveBeenCalledWith(ctx.cwd);
@@ -187,7 +187,7 @@ describe("session_tree handler", () => {
       throw new Error("stale context");
     });
 
-    expect(() => handlers["session_tree"]({}, ctx)).not.toThrow();
+    expect(() => handlers["session_tree"]!({}, ctx)).not.toThrow();
   });
 
   it("re-throws non-stale errors", () => {
@@ -196,7 +196,7 @@ describe("session_tree handler", () => {
       throw new Error("filesystem error");
     });
 
-    expect(() => handlers["session_tree"]({}, ctx)).toThrow("filesystem error");
+    expect(() => handlers["session_tree"]!({}, ctx)).toThrow("filesystem error");
   });
 });
 
@@ -208,7 +208,7 @@ describe("tool_call handler", () => {
 
     mockHandleToolCall.mockReturnValue(undefined);
 
-    const result = await handlers["tool_call"](event, ctx);
+    const result = await handlers["tool_call"]!(event, ctx);
 
     expect(mockHandleToolCall).toHaveBeenCalledWith(event, null, {});
     expect(result).toBeUndefined();
@@ -220,7 +220,7 @@ describe("tool_call handler", () => {
     const blockResult = { block: true as const, reason: "blocked" };
     mockHandleToolCall.mockReturnValue(blockResult);
 
-    const result = await handlers["tool_call"](event, {});
+    const result = await handlers["tool_call"]!(event, {});
 
     expect(result).toEqual(blockResult);
   });
@@ -234,7 +234,7 @@ describe("before_agent_start handler", () => {
     };
     mockHandleBeforeAgentStart.mockReturnValue(msgResult);
 
-    const result = await handlers["before_agent_start"]({}, {});
+    const result = await handlers["before_agent_start"]!({}, {});
 
     expect(mockHandleBeforeAgentStart).toHaveBeenCalledWith(null, {});
     expect(result).toEqual(msgResult);
@@ -244,7 +244,7 @@ describe("before_agent_start handler", () => {
     const { handlers } = initAndGetHandlers();
     mockHandleBeforeAgentStart.mockReturnValue(undefined);
 
-    const result = await handlers["before_agent_start"]({}, {});
+    const result = await handlers["before_agent_start"]!({}, {});
 
     expect(result).toBeUndefined();
   });
@@ -259,12 +259,12 @@ describe("agent_end handler", () => {
     // Need to set state via session_start first, so the internal state is non-null
     mockLoadWorkflows.mockReturnValue(makeDefinition());
     mockReconstructState.mockReturnValue(state);
-    await handlers["session_start"]({}, ctx);
+    await handlers["session_start"]!({}, ctx);
 
     const mutatedState = { ...state, completionNotified: true };
     mockHandleAgentEnd.mockReturnValue({ unload: false, persist: true, state: mutatedState });
 
-    await handlers["agent_end"](event, ctx);
+    await handlers["agent_end"]!(event, ctx);
 
     expect(mockHandleAgentEnd).toHaveBeenCalledWith(api, state, makeDefinition(), ctx, event);
     expect(mockPersistState).toHaveBeenCalled();
@@ -277,16 +277,16 @@ describe("agent_end handler", () => {
     // Initialize state
     mockLoadWorkflows.mockReturnValue(makeDefinition());
     mockReconstructState.mockReturnValue(state);
-    await handlers["session_start"]({}, ctx);
+    await handlers["session_start"]!({}, ctx);
 
     mockHandleAgentEnd.mockReturnValue({ unload: true, persist: false });
 
     // agent_end with unload
-    await handlers["agent_end"]({ type: "agent_end", messages: [] }, ctx);
+    await handlers["agent_end"]!({ type: "agent_end", messages: [] }, ctx);
 
     // Verify state was unloaded — next handleAgentEnd call should receive null state
     mockHandleAgentEnd.mockReturnValue({ unload: false, persist: false });
-    await handlers["agent_end"]({ type: "agent_end", messages: [] }, ctx);
+    await handlers["agent_end"]!({ type: "agent_end", messages: [] }, ctx);
 
     expect(mockHandleAgentEnd).toHaveBeenLastCalledWith(
       expect.anything(),
@@ -304,16 +304,16 @@ describe("agent_end handler", () => {
     // Initialize state
     mockLoadWorkflows.mockReturnValue(makeDefinition());
     mockReconstructState.mockReturnValue(state);
-    await handlers["session_start"]({}, ctx);
+    await handlers["session_start"]!({}, ctx);
 
     const newState: WorkflowState = { ...state, globalStepCount: 5 };
     mockHandleAgentEnd.mockReturnValue({ unload: false, persist: false, state: newState });
 
-    await handlers["agent_end"]({ type: "agent_end", messages: [] }, ctx);
+    await handlers["agent_end"]!({ type: "agent_end", messages: [] }, ctx);
 
     // Next handleAgentEnd call should receive newState
     mockHandleAgentEnd.mockReturnValue({ unload: false, persist: false });
-    await handlers["agent_end"]({ type: "agent_end", messages: [] }, ctx);
+    await handlers["agent_end"]!({ type: "agent_end", messages: [] }, ctx);
 
     expect(mockHandleAgentEnd).toHaveBeenLastCalledWith(
       expect.anything(),
@@ -330,7 +330,7 @@ describe("agent_end handler", () => {
       throw new Error("stale context");
     });
 
-    expect(() => handlers["agent_end"]({ type: "agent_end", messages: [] }, ctx)).not.toThrow();
+    expect(() => handlers["agent_end"]!({ type: "agent_end", messages: [] }, ctx)).not.toThrow();
   });
 
   it("re-throws non-stale errors", () => {
@@ -339,7 +339,7 @@ describe("agent_end handler", () => {
       throw new Error("something broke");
     });
 
-    expect(() => handlers["agent_end"]({ type: "agent_end", messages: [] }, ctx)).toThrow(
+    expect(() => handlers["agent_end"]!({ type: "agent_end", messages: [] }, ctx)).toThrow(
       "something broke",
     );
   });
@@ -349,7 +349,7 @@ describe("turn_end handler", () => {
   it("delegates to updateStatus", async () => {
     const { handlers, ctx } = initAndGetHandlers();
 
-    await handlers["turn_end"]({}, ctx);
+    await handlers["turn_end"]!({}, ctx);
 
     expect(mockUpdateStatus).toHaveBeenCalledWith(ctx, null, {});
   });
@@ -360,7 +360,7 @@ describe("turn_end handler", () => {
       throw new Error("stale context");
     });
 
-    expect(() => handlers["turn_end"]({}, ctx)).not.toThrow();
+    expect(() => handlers["turn_end"]!({}, ctx)).not.toThrow();
   });
 
   it("re-throws non-stale errors from updateStatus", () => {
@@ -369,6 +369,6 @@ describe("turn_end handler", () => {
       throw new Error("render error");
     });
 
-    expect(() => handlers["turn_end"]({}, ctx)).toThrow("render error");
+    expect(() => handlers["turn_end"]!({}, ctx)).toThrow("render error");
   });
 });

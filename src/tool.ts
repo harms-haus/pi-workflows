@@ -71,7 +71,14 @@ function handleStatus(
   }
   const { definition, currentPhase, breadcrumb } = active;
   const top = state.currentPath[state.currentPath.length - 1];
-  const topDef = definitions[top.workflowKey];
+  const topDef = top ? definitions[top.workflowKey] : undefined;
+  if (!top || !topDef) {
+    return {
+      content: [textPart("Error: could not resolve current workflow path.")],
+      details: {},
+      resultType: "error",
+    };
+  }
   const total = topDef.phases.length;
   const current = top.phaseIndex + 1;
   const lines: string[] = [];
@@ -207,7 +214,7 @@ function handleNext(
     // Entered a subworkflow — name it
     const subName =
       newActive.breadcrumb.length > 0
-        ? newActive.breadcrumb[newActive.breadcrumb.length - 1].name
+        ? (newActive.breadcrumb[newActive.breadcrumb.length - 1]?.name ?? "subworkflow")
         : "subworkflow";
     advanceVerb = `Entered subworkflow '${subName}'`;
   } else if (pathLenAfter < pathLenBefore) {
@@ -266,7 +273,7 @@ function handleLoop(
   // Identify which scope was looped
   const loopedScopeName =
     newActive.breadcrumb.length > 0
-      ? newActive.breadcrumb[newActive.breadcrumb.length - 1].name
+      ? (newActive.breadcrumb[newActive.breadcrumb.length - 1]?.name ?? "workflow")
       : "workflow";
   return {
     content: [
@@ -338,8 +345,8 @@ export function registerWorkflowTool(
     },
     renderResult(result, _opts, theme) {
       const text = result.content[0];
-      if (text.type === "text") {
-        const t = text.text;
+      if (text && text.type === "text") {
+        const t = (text as { type: "text"; text: string }).text;
         const rt = (result as ActionResult).resultType;
         if (rt === "error" || rt === "cancel" || rt === "complete") {
           return new Text(theme.fg("toolOutput", t), 0, 0);

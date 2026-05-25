@@ -61,7 +61,8 @@ export function autoEnterSubworkflowRefs(
   const cloned = cloneState(state);
   cloned.currentPath.push({ workflowKey: entry.workflowKey, phaseIndex: 0 });
 
-  const firstEntry = entry.resolved.phases[0];
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  const firstEntry = entry.resolved.phases[0]!;
 
   if (isSubworkflowRef(firstEntry)) {
     return autoEnterSubworkflowRefs(cloned, firstEntry);
@@ -98,18 +99,17 @@ export function advancePhase(
   definitions: Record<string, WorkflowDefinition>,
 ): { advanced: true; from: string; to: string | null; newState: WorkflowState } {
   const s = cloneState(state);
-  const top = s.currentPath[s.currentPath.length - 1];
-
-  const topDef = definitions[top.workflowKey];
-
-  const currentEntry = topDef.phases[top.phaseIndex];
+  /* eslint-disable @typescript-eslint/no-non-null-assertion */
+  const top = s.currentPath[s.currentPath.length - 1]!;
+  const topDef = definitions[top.workflowKey]!;
+  const currentEntry = topDef.phases[top.phaseIndex]!;
+  /* eslint-enable @typescript-eslint/no-non-null-assertion */
 
   // Case 1: Entering a subworkflow
   if (isSubworkflowRef(currentEntry)) {
     s.currentPath.push({ workflowKey: currentEntry.workflowKey, phaseIndex: 0 });
     s.globalStepCount++;
     const subDef = definitions[currentEntry.workflowKey];
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if (!subDef) {
       console.warn(
         `[pi-workflows] Missing definition for subworkflow '${currentEntry.workflowKey}' during advance.`,
@@ -128,7 +128,8 @@ export function advancePhase(
   if (top.phaseIndex < topDef.phases.length - 1) {
     top.phaseIndex += 1;
     s.globalStepCount++;
-    const nextEntry = topDef.phases[top.phaseIndex];
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const nextEntry = topDef.phases[top.phaseIndex]!;
     if (isSubworkflowRef(nextEntry)) {
       const { phaseName: concreteName, newState: entered } = autoEnterSubworkflowRefs(s, nextEntry);
       return {
@@ -157,9 +158,9 @@ export function advancePhase(
 
   // Loop: increment the parent's phase index and check if it has a next phase.
   // If the parent is also exhausted, pop again and continue.
-  let newTop = s.currentPath[s.currentPath.length - 1];
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  let newTop = s.currentPath[s.currentPath.length - 1]!;
   let newTopDef: WorkflowDefinition | undefined = definitions[newTop.workflowKey];
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   if (!newTopDef) {
     console.warn(`[pi-workflows] Missing definition for '${newTop.workflowKey}' during breakout.`);
     s.active = false;
@@ -177,9 +178,9 @@ export function advancePhase(
     }
     // Nested parent also exhausted — pop again and continue
     s.currentPath.pop();
-    newTop = s.currentPath[s.currentPath.length - 1];
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    newTop = s.currentPath[s.currentPath.length - 1]!;
     newTopDef = definitions[newTop.workflowKey];
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if (!newTopDef) {
       console.warn(
         `[pi-workflows] Missing definition for '${newTop.workflowKey}' during breakout.`,
@@ -191,7 +192,8 @@ export function advancePhase(
     newTop.phaseIndex += 1;
   }
 
-  const nextEntry = newTopDef.phases[newTop.phaseIndex];
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  const nextEntry = newTopDef.phases[newTop.phaseIndex]!;
   if (isSubworkflowRef(nextEntry)) {
     const { phaseName: concreteName, newState: entered } = autoEnterSubworkflowRefs(s, nextEntry);
     return {
@@ -215,21 +217,26 @@ export function loopPhase(
   state: WorkflowState,
   definitions: Record<string, WorkflowDefinition>,
 ): { looped: true; to: string; newState: WorkflowState } | { looped: false; error: string } {
-  const top = state.currentPath[state.currentPath.length - 1];
-  const topDef = definitions[top.workflowKey];
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  const top = state.currentPath[state.currentPath.length - 1]!;
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  const topDef = definitions[top.workflowKey]!;
 
   if (topDef.loopable === false) {
     return { looped: false, error: "Looping is disabled for this workflow." };
   }
 
   const s = cloneState(state);
+  /* eslint-disable @typescript-eslint/no-non-null-assertion */
   s.currentPath[s.currentPath.length - 1] = {
-    ...s.currentPath[s.currentPath.length - 1],
+    ...s.currentPath[s.currentPath.length - 1]!,
     phaseIndex: 0,
   };
+  /* eslint-enable @typescript-eslint/no-non-null-assertion */
   s.globalStepCount++;
 
-  const firstEntry = topDef.phases[0];
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  const firstEntry = topDef.phases[0]!;
   const firstPhaseName = phaseEntryName(firstEntry);
   return { looped: true, to: firstPhaseName, newState: s };
 }
@@ -256,12 +263,15 @@ export function resolveActive(
   }
 
   // Get the innermost scope
-  const top = state.currentPath[state.currentPath.length - 1];
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  const top = state.currentPath[state.currentPath.length - 1]!;
   if (!(top.workflowKey in definitions)) return null;
-  const topDef = definitions[top.workflowKey];
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  const topDef = definitions[top.workflowKey]!;
 
   if (top.phaseIndex >= topDef.phases.length) return null;
-  const currentEntry = topDef.phases[top.phaseIndex];
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  const currentEntry = topDef.phases[top.phaseIndex]!;
 
   // Resolve the concrete PhaseDefinition (drill into subworkflow refs)
   let currentPhase: PhaseDefinition;
@@ -289,7 +299,8 @@ export function resolveActive(
 
   // Build breadcrumb from top-level to innermost
   const breadcrumb = state.currentPath.map((seg, idx) => {
-    const segDef = definitions[seg.workflowKey];
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const segDef = definitions[seg.workflowKey]!;
     const isInnermost = idx === state.currentPath.length - 1;
     return {
       workflowKey: seg.workflowKey,
@@ -300,7 +311,8 @@ export function resolveActive(
   });
 
   return {
-    definition: definitions[state.currentPath[0].workflowKey],
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    definition: definitions[state.currentPath[0]!.workflowKey]!,
     state,
     currentPhase,
     currentPhaseEntry: currentEntry,
@@ -391,7 +403,8 @@ export function reconstructState(ctx: {
 }): WorkflowState | null {
   const branch = ctx.sessionManager.getBranch();
   for (let i = branch.length - 1; i >= 0; i--) {
-    const entry = branch[i];
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const entry = branch[i]!;
     if (entry.type === "custom" && entry.customType === STATE_ENTRY_TYPE) {
       const rawData = entry.data as Record<string, unknown> | undefined;
       if (rawData?.workflowKey == null) continue;

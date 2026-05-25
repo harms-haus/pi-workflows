@@ -768,8 +768,8 @@ describe("loadWorkflowsFromDir", () => {
     expect(Object.keys(result)).toHaveLength(2);
     expect(result["wf-a"]).toBeDefined();
     expect(result["wf-b"]).toBeDefined();
-    expect(result["wf-a"].name).toBe("WF A");
-    expect(result["wf-b"].name).toBe("WF B");
+    expect(result["wf-a"]!.name).toBe("WF A");
+    expect(result["wf-b"]!.name).toBe("WF B");
   });
 });
 
@@ -807,7 +807,7 @@ describe("loadWorkflows", () => {
     const result = loadWorkflows();
 
     expect(result["global-wf"]).toBeDefined();
-    expect(result["global-wf"].name).toBe("Global WF");
+    expect(result["global-wf"]!.name).toBe("Global WF");
   });
 
   it("merges project-local definitions over global", () => {
@@ -842,7 +842,7 @@ describe("loadWorkflows", () => {
 
     // Project version should override global
     expect(result["my-wf"]).toBeDefined();
-    expect(result["my-wf"].name).toBe("Project Version");
+    expect(result["my-wf"]!.name).toBe("Project Version");
   });
 
   it("deduplicates by commandName", () => {
@@ -918,7 +918,7 @@ describe("loadWorkflows", () => {
     expect(result["inner"]).toBeDefined();
 
     // Outer's subworkflow ref should be resolved
-    const outerPhase = result["outer"].phases[0];
+    const outerPhase = result["outer"]!.phases[0]!;
     if ("subworkflow" in outerPhase) {
       expect(outerPhase.resolved).toBe(result["inner"]);
     }

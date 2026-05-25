@@ -26,7 +26,7 @@ function setupTool(state: WorkflowState | null) {
   registerWorkflowTool(api, getState, getDefinitions, setState);
 
   expect(registerTool).toHaveBeenCalledTimes(1);
-  const toolConfig = registerTool.mock.calls[0][0] as Record<string, unknown>;
+  const toolConfig = registerTool.mock.calls[0]![0] as Record<string, unknown>;
   type ToolResult = {
     content: Array<{ type: string; text: string }>;
     details: Record<string, unknown>;
@@ -233,7 +233,7 @@ describe("workflow_step tool", () => {
       expect(text).toContain("Phase 1");
 
       const currentState = getState()!;
-      expect(currentState.currentPath[0].phaseIndex).toBe(0);
+      expect(currentState.currentPath[0]!.phaseIndex).toBe(0);
     });
 
     it("when phase not loopable returns error", async () => {
@@ -414,7 +414,7 @@ describe("workflow_step tool", () => {
 
       registerWorkflowTool(api, getState, getDefinitions, setState);
 
-      const toolConfig = registerTool.mock.calls[0][0] as Record<string, unknown>;
+      const toolConfig = registerTool.mock.calls[0]![0] as Record<string, unknown>;
       const execute = toolConfig.execute as (
         toolCallId: string,
         params: Record<string, unknown>,

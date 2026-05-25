@@ -78,7 +78,12 @@ export function registerWorkflowCommand(
         return;
       }
 
-      const [, commandName, description] = parts;
+      const commandName = parts[1];
+      const description = parts[2];
+      if (commandName === undefined || description === undefined) {
+        showAvailableWorkflows(ctx);
+        return;
+      }
       if (!description || description.trim() === "") {
         ctx.ui.notify(`Usage: /workflow ${commandName} {description}`, "warning");
         return;
