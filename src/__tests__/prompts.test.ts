@@ -558,7 +558,9 @@ describe("buildContextPrompt — all steps list", () => {
     // Phase index 0 — phase 1 should be marked
     const activeAt0 = makeActive(def);
     const prompt0 = buildContextPrompt(activeAt0);
-    const stepLines0 = prompt0.split("\n").slice(prompt0.split("\n").findIndex((l) => l.includes("**All Steps:**")) + 1);
+    const stepLines0 = prompt0
+      .split("\n")
+      .slice(prompt0.split("\n").findIndex((l) => l.includes("**All Steps:**")) + 1);
     const phase1Line = stepLines0.find((l) => l.includes("Phase 1"))!;
     const phase2Line = stepLines0.find((l) => l.includes("Phase 2"))!;
     expect(phase1Line).toContain("▶");
@@ -573,7 +575,9 @@ describe("buildContextPrompt — all steps list", () => {
       nextPhase: null,
     };
     const prompt1 = buildContextPrompt(correctedAt1);
-    const stepLines1 = prompt1.split("\n").slice(prompt1.split("\n").findIndex((l) => l.includes("**All Steps:**")) + 1);
+    const stepLines1 = prompt1
+      .split("\n")
+      .slice(prompt1.split("\n").findIndex((l) => l.includes("**All Steps:**")) + 1);
     const phase1Line1 = stepLines1.find((l) => l.includes("Phase 1"))!;
     const phase2Line1 = stepLines1.find((l) => l.includes("Phase 2"))!;
     expect(phase1Line1).not.toContain("▶");
@@ -637,7 +641,12 @@ describe("buildContextPrompt — all steps list", () => {
       nextPhase,
       breadcrumb: [
         { workflowKey: "parent", name: parentDef.name, phaseName: parentDef.name, emoji: "" },
-        { workflowKey: "sub", name: subDef.name, phaseName: innerPhase1.name, emoji: innerPhase1.emoji },
+        {
+          workflowKey: "sub",
+          name: subDef.name,
+          phaseName: innerPhase1.name,
+          emoji: innerPhase1.emoji,
+        },
       ],
     };
 
@@ -651,7 +660,9 @@ describe("buildContextPrompt — all steps list", () => {
     expect(prompt).toMatch(/4\..*Phase 2/);
 
     // The current phase (Sub 1) should be marked with ▶
-    const stepLines = prompt.split("\n").slice(prompt.split("\n").findIndex((l) => l.includes("**All Steps:**")) + 1);
+    const stepLines = prompt
+      .split("\n")
+      .slice(prompt.split("\n").findIndex((l) => l.includes("**All Steps:**")) + 1);
     const sub1Line = stepLines.find((l) => l.includes("Sub 1"))!;
     expect(sub1Line).toContain("▶");
   });

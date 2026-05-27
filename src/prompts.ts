@@ -88,12 +88,12 @@ export function buildContextPrompt(active: ActiveWorkflow): string {
   // so matching by ID is safe even across subworkflow boundaries.
   const currentFlatIndex = allPhases.findIndex((p) => p.id === currentPhase.id);
   const stepLines = allPhases.map((phase, i) => {
-    const marker = i === currentFlatIndex ? '▶' : ' ';
+    const marker = i === currentFlatIndex ? "▶" : " ";
     return `${marker} ${i + 1}. ${phase.emoji} ${phase.name}`;
   });
-  lines.push('');
-  lines.push('**All Steps:**');
-  lines.push(stepLines.join('\n'));
+  lines.push("");
+  lines.push("**All Steps:**");
+  lines.push(stepLines.join("\n"));
 
   lines.push("");
   lines.push("**What to do in this phase:**");
