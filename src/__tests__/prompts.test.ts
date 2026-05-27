@@ -1,12 +1,14 @@
 import { describe, it, expect } from "vitest";
 import {
   buildContextPrompt,
+  flattenAllPhases,
   DEFAULT_NOT_DONE_REMINDER,
   DEFAULT_COMPLETION_MESSAGE,
   DEFAULT_CANCELLED_MESSAGE,
 } from "../prompts";
 import type {
   PhaseDefinition,
+  SubworkflowReference,
   WorkflowDefinition,
   ActiveWorkflow,
   WorkflowState,
@@ -420,5 +422,286 @@ describe("default message constants", () => {
   it("DEFAULT_CANCELLED_MESSAGE contains template variables", () => {
     expect(DEFAULT_CANCELLED_MESSAGE).toContain("{workflowName}");
     expect(DEFAULT_CANCELLED_MESSAGE).toContain("{taskDescription}");
+  });
+});
+
+// ── flattenAllPhases ──
+
+describe("flattenAllPhases", () => {
+  it("flattens a simple linear workflow", () => {
+    const result = flattenAllPhases([phase1, phase2]);
+    expect(result.length).toBe(2);
+    expect(result[0]!.name).toBe("Phase 1");
+    expect(result[1]!.name).toBe("Phase 2");
+  });
+
+  it("flattens subworkflow phases inline", () => {
+    const innerPhase1: PhaseDefinition = {
+      id: "sp1",
+      name: "Sub 1",
+      emoji: "🔧",
+      instructions: "sub 1",
+    };
+    const innerPhase2: PhaseDefinition = {
+      id: "sp2",
+      name: "Sub 2",
+      emoji: "🔩",
+      instructions: "sub 2",
+    };
+    const subRef: SubworkflowReference = {
+      subworkflow: true,
+      workflowKey: "inner",
+      resolved: {
+        name: "Inner",
+        commandName: "inner",
+        initialMessage: "Start",
+        phases: [innerPhase1, innerPhase2],
+      },
+    };
+    const result = flattenAllPhases([phase1, subRef, phase2]);
+    expect(result.length).toBe(4);
+    expect(result.map((p) => p.name)).toEqual(["Phase 1", "Sub 1", "Sub 2", "Phase 2"]);
+  });
+
+  it("skips unresolved subworkflow refs", () => {
+    const result = flattenAllPhases([
+      phase1,
+      { subworkflow: true, workflowKey: "missing", resolved: null },
+    ]);
+    expect(result.length).toBe(1);
+    expect(result[0]!.name).toBe("Phase 1");
+  });
+
+  it("handles nested subworkflows", () => {
+    const deepPhase1: PhaseDefinition = {
+      id: "dp1",
+      name: "Deep 1",
+      emoji: "🎯",
+      instructions: "deep 1",
+    };
+    const deepPhase2: PhaseDefinition = {
+      id: "dp2",
+      name: "Deep 2",
+      emoji: "🎪",
+      instructions: "deep 2",
+    };
+    const innerPhase: PhaseDefinition = {
+      id: "ip1",
+      name: "Inner",
+      emoji: "🔮",
+      instructions: "inner",
+    };
+    const outerPhase: PhaseDefinition = {
+      id: "op1",
+      name: "Outer",
+      emoji: "🌍",
+      instructions: "outer",
+    };
+
+    const deepSubRef: SubworkflowReference = {
+      subworkflow: true,
+      workflowKey: "deep",
+      resolved: {
+        name: "Deep",
+        commandName: "deep",
+        initialMessage: "Start",
+        phases: [deepPhase1, deepPhase2],
+      },
+    };
+    const subRefA: SubworkflowReference = {
+      subworkflow: true,
+      workflowKey: "subA",
+      resolved: {
+        name: "SubA",
+        commandName: "subA",
+        initialMessage: "Start",
+        phases: [deepSubRef, innerPhase],
+      },
+    };
+
+    const result = flattenAllPhases([outerPhase, subRefA]);
+    expect(result.map((p) => p.name)).toEqual(["Outer", "Deep 1", "Deep 2", "Inner"]);
+  });
+});
+
+// ── buildContextPrompt — all steps list ──
+
+describe("buildContextPrompt — all steps list", () => {
+  it("includes numbered step list with all phases", () => {
+    const phase3: PhaseDefinition = {
+      id: "p3",
+      name: "Phase 3",
+      emoji: "3️⃣",
+      instructions: "Do 3",
+    };
+    const def: WorkflowDefinition = {
+      name: "Three",
+      commandName: "three",
+      initialMessage: "Start",
+      phases: [phase1, phase2, phase3],
+    };
+    const active = makeActive(def);
+    const prompt = buildContextPrompt(active);
+
+    expect(prompt).toContain("**All Steps:**");
+    expect(prompt).toContain("Phase 1");
+    expect(prompt).toContain("Phase 2");
+    expect(prompt).toContain("Phase 3");
+    expect(prompt).toMatch(/1\./);
+    expect(prompt).toMatch(/2\./);
+    expect(prompt).toMatch(/3\./);
+  });
+
+  it("marks current phase with ▶ arrow marker", () => {
+    const def = makePromptsLinearDef();
+
+    // Phase index 0 — phase 1 should be marked
+    const activeAt0 = makeActive(def);
+    const prompt0 = buildContextPrompt(activeAt0);
+    const stepLines0 = prompt0.split("\n").slice(prompt0.split("\n").findIndex((l) => l.includes("**All Steps:**")) + 1);
+    const phase1Line = stepLines0.find((l) => l.includes("Phase 1"))!;
+    const phase2Line = stepLines0.find((l) => l.includes("Phase 2"))!;
+    expect(phase1Line).toContain("▶");
+    expect(phase2Line).not.toContain("▶");
+
+    // Phase index 1 — phase 2 should be marked
+    const activeAt1 = makeActive(def, {}, [{ workflowKey: "test", phaseIndex: 1 }]);
+    const correctedAt1: ActiveWorkflow = {
+      ...activeAt1,
+      currentPhase: def.phases[1] as PhaseDefinition,
+      currentPhaseEntry: def.phases[1]!,
+      nextPhase: null,
+    };
+    const prompt1 = buildContextPrompt(correctedAt1);
+    const stepLines1 = prompt1.split("\n").slice(prompt1.split("\n").findIndex((l) => l.includes("**All Steps:**")) + 1);
+    const phase1Line1 = stepLines1.find((l) => l.includes("Phase 1"))!;
+    const phase2Line1 = stepLines1.find((l) => l.includes("Phase 2"))!;
+    expect(phase1Line1).not.toContain("▶");
+    expect(phase2Line1).toContain("▶");
+  });
+
+  it("flattens subworkflow phases into step list", () => {
+    const innerPhase1: PhaseDefinition = {
+      id: "sp1",
+      name: "Sub 1",
+      emoji: "🔧",
+      instructions: "sub 1",
+    };
+    const innerPhase2: PhaseDefinition = {
+      id: "sp2",
+      name: "Sub 2",
+      emoji: "🔩",
+      instructions: "sub 2",
+    };
+    const subDef: WorkflowDefinition = {
+      name: "Sub",
+      commandName: "sub",
+      initialMessage: "Start",
+      show: "workflows",
+      phases: [innerPhase1, innerPhase2],
+    };
+    const parentDef: WorkflowDefinition = {
+      name: "Parent",
+      commandName: "par",
+      initialMessage: "Start",
+      phases: [phase1, { subworkflow: true, workflowKey: "sub", resolved: subDef }, phase2],
+    };
+
+    // Build active inside the subworkflow at phase index 0
+    const state: WorkflowState = {
+      active: true,
+      workflowKey: "parent",
+      currentPath: [
+        { workflowKey: "parent", phaseIndex: 1 },
+        { workflowKey: "sub", phaseIndex: 0 },
+      ],
+      globalStepCount: 3,
+      taskId: "wf-123",
+      taskDescription: "test task",
+      startedAt: 1000,
+      completionNotified: false,
+      cancelled: false,
+    };
+    const defs: Record<string, WorkflowDefinition> = { parent: parentDef, sub: subDef };
+    const innerSegment = state.currentPath[state.currentPath.length - 1]!;
+    const innerDef = defs[innerSegment.workflowKey]!;
+    const currentEntry = innerDef.phases[innerSegment.phaseIndex]!;
+    const currentPhase = currentEntry as PhaseDefinition;
+    const nextPhase: PhaseEntry | null = innerDef.phases[innerSegment.phaseIndex + 1] ?? null;
+
+    const active: ActiveWorkflow = {
+      definition: parentDef,
+      state,
+      currentPhase,
+      currentPhaseEntry: currentEntry,
+      nextPhase,
+      breadcrumb: [
+        { workflowKey: "parent", name: parentDef.name, phaseName: parentDef.name, emoji: "" },
+        { workflowKey: "sub", name: subDef.name, phaseName: innerPhase1.name, emoji: innerPhase1.emoji },
+      ],
+    };
+
+    const prompt = buildContextPrompt(active);
+    expect(prompt).toContain("**All Steps:**");
+
+    // All 4 concrete phases should be numbered 1-4
+    expect(prompt).toMatch(/1\..*Phase 1/);
+    expect(prompt).toMatch(/2\..*Sub 1/);
+    expect(prompt).toMatch(/3\..*Sub 2/);
+    expect(prompt).toMatch(/4\..*Phase 2/);
+
+    // The current phase (Sub 1) should be marked with ▶
+    const stepLines = prompt.split("\n").slice(prompt.split("\n").findIndex((l) => l.includes("**All Steps:**")) + 1);
+    const sub1Line = stepLines.find((l) => l.includes("Sub 1"))!;
+    expect(sub1Line).toContain("▶");
+  });
+
+  it("shows correct count in step list", () => {
+    const phase3: PhaseDefinition = {
+      id: "p3",
+      name: "Phase 3",
+      emoji: "3️⃣",
+      instructions: "Do 3",
+    };
+    const innerPhase1: PhaseDefinition = {
+      id: "sp1",
+      name: "Sub 1",
+      emoji: "🔧",
+      instructions: "sub 1",
+    };
+    const innerPhase2: PhaseDefinition = {
+      id: "sp2",
+      name: "Sub 2",
+      emoji: "🔩",
+      instructions: "sub 2",
+    };
+    const subRef: SubworkflowReference = {
+      subworkflow: true,
+      workflowKey: "inner",
+      resolved: {
+        name: "Inner",
+        commandName: "inner",
+        initialMessage: "Start",
+        phases: [innerPhase1, innerPhase2],
+      },
+    };
+    const def: WorkflowDefinition = {
+      name: "Mixed",
+      commandName: "mixed",
+      initialMessage: "Start",
+      phases: [phase1, subRef, phase2, phase3],
+    };
+
+    // Total flattened phases: phase1 + innerPhase1 + innerPhase2 + phase2 + phase3 = 5
+    const active = makeActive(def);
+    const prompt = buildContextPrompt(active);
+
+    // Extract the All Steps section
+    const stepsStart = prompt.indexOf("**All Steps:**");
+    expect(stepsStart).toBeGreaterThan(-1);
+    const stepsSection = prompt.slice(stepsStart);
+    // Count lines matching numbered items like "  1." or "▶ 1."
+    const numberedLines = stepsSection.split("\n").filter((l) => /\d+\./.test(l));
+    expect(numberedLines.length).toBe(5);
   });
 });

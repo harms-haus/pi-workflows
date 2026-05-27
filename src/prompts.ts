@@ -1,6 +1,6 @@
 import { getBlockedTools, resolveTemplate } from "./config";
 import { phaseEntryName } from "./state";
-import type { ActiveWorkflow, PhaseEntry } from "./types";
+import type { ActiveWorkflow, PhaseDefinition, PhaseEntry } from "./types";
 import { isSubworkflowRef } from "./types";
 
 // ── Defaults ──
@@ -81,6 +81,20 @@ export function buildContextPrompt(active: ActiveWorkflow): string {
   lines.push(`**Task ID:** ${state.taskId}`);
   lines.push(`**Current Phase:** ${currentPhase.emoji} ${currentPhase.name}`);
   lines.push(progress);
+
+  // All Steps list (flattened across subworkflows)
+  const allPhases = flattenAllPhases(definition.phases);
+  // Phase IDs are unique within a workflow (enforced by validation),
+  // so matching by ID is safe even across subworkflow boundaries.
+  const currentFlatIndex = allPhases.findIndex((p) => p.id === currentPhase.id);
+  const stepLines = allPhases.map((phase, i) => {
+    const marker = i === currentFlatIndex ? '▶' : ' ';
+    return `${marker} ${i + 1}. ${phase.emoji} ${phase.name}`;
+  });
+  lines.push('');
+  lines.push('**All Steps:**');
+  lines.push(stepLines.join('\n'));
+
   lines.push("");
   lines.push("**What to do in this phase:**");
   lines.push(phaseInstructions);
@@ -94,9 +108,25 @@ export function buildContextPrompt(active: ActiveWorkflow): string {
 }
 
 /**
- * Collect all unique profile names across all phases in a workflow,
- * recursively descending into subworkflow references.
+ * Recursively flatten a PhaseEntry[] into a flat PhaseDefinition[] by
+ * drilling into SubworkflowReference entries.
  */
+export function flattenAllPhases(phases: PhaseEntry[]): PhaseDefinition[] {
+  const result: PhaseDefinition[] = [];
+  for (const entry of phases) {
+    if (isSubworkflowRef(entry)) {
+      if (entry.resolved) {
+        for (const phase of flattenAllPhases(entry.resolved.phases)) {
+          result.push(phase);
+        }
+      }
+    } else {
+      result.push(entry);
+    }
+  }
+  return result;
+}
+
 function collectAllProfiles(definition: { phases: PhaseEntry[] }): string[] {
   const seen = new Set<string>();
   function visit(phases: PhaseEntry[]) {

@@ -18,15 +18,15 @@ Tests use Vitest's built-in `describe`/`it`/`expect` API. No additional assertio
 
 ## Test Files
 
-All tests live under `src/__tests__/`. There are 9 test files with **324 total test cases**.
+All tests live under `src/__tests__/`. There are 9 test files with **343 total test cases**.
 
 | File                | Tests | What's Covered                                                                                                                                                                                                              |
 | ------------------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `config.test.ts`    | 84    | `resolveTemplate`, `validateWorkflowDefinition`, `detectCycles`, `findWorkflowByCommandName`, `getBlockedTools`, `getWhitelist`, `loadWorkflowFromDir`, `loadWorkflowsFromDir`, `loadWorkflows`                             |
 | `state.test.ts`     | 36    | `createInitialState`, `advancePhase` (linear, enter-subworkflow, breakout, multi-level, auto-enter, two-subworkflows), `loopPhase` (scope isolation, loopable inheritance), `resolveActive`, `reconstructState`, `isActive` |
-| `prompts.test.ts`   | 10    | `buildContextPrompt` (linear, nested, template resolution, profiles), `collectAllProfiles`, `getPreviousPhaseName`, default message constants                                                                               |
+| `prompts.test.ts`   | 21    | `buildContextPrompt` (linear, nested, template resolution, profiles, all steps list), `collectAllProfiles`, `getPreviousPhaseName`, `flattenAllPhases`, default message constants                                            |
 | `hooks.test.ts`     | 47    | `updateStatus`, `handleToolCall`, `handleBeforeAgentStart`, `handleAgentEnd` (completion, cancellation, countdown widget, abort detection, no-UI fallback, edge cases, TimerManager-tracked non-UI countdown), `timerManager.clearAll` |
-| `tool.test.ts`      | 34    | `registerWorkflowTool` — `status`, `next`, `cancel`, `loop` actions; `renderCall`, `renderResult`; edge cases (stale definition, nested path, unknown action)                                                               |
+| `tool.test.ts`      | 32    | `registerWorkflowTool` — `status`, `next`, `cancel`, `loop` actions; `renderCall`, `renderResult`; edge cases (stale definition, nested path, resolve failure)                             |
 | `command.test.ts`   | 28    | `registerWorkflowCommand` (start, validation, conflicts, tab completion, subworkflow rejection), `registerCancelWorkflowCommand` (cancel, persist, message)                                                                 |
 | `renderers.test.ts` | 10    | `registerRenderers` — `workflow:context`, `workflow:complete`, `workflow:countdown` renderers                                                                                                                               |
 | `TimerManager.test.ts` | 10  | `TimerManager` — `startInterval`, `startTimeout`, `clearAll`, stale callback prevention, timer replacement                                                          |
@@ -120,7 +120,7 @@ Uses shared fixture definitions imported from `helpers/fixtures.ts` (see [Test H
 
 **`isActive`** — 3 tests: active state, inactive state, null.
 
-### prompts.test.ts (10 tests)
+### prompts.test.ts (21 tests)
 
 **`buildContextPrompt`** — 4 tests:
 
@@ -129,9 +129,29 @@ Uses shared fixture definitions imported from `helpers/fixtures.ts` (see [Test H
 - All template variables resolved (no leftover `{varName}`)
 - `availableProfiles` shown in prompt when phase defines them
 
+**`buildContextPrompt` — nested progress** — 1 test: shows inner phase count from resolved subworkflow when `currentPhaseEntry` is a resolved `SubworkflowRef`.
+
+**`buildContextPrompt` — blocked tools** — 1 test: shows blocked tools when phase has a blacklist.
+
 **`collectAllProfiles`** (tested via prompt output) — 1 test: profiles from subworkflow phases are included in the "All profiles" section when parent is active.
 
+**`collectAllProfiles` — unresolved subworkflow ref** — 1 test: skips unresolved subworkflow refs in profile collection without crashing.
+
 **`getPreviousPhaseName`** (tested via prompt output) — 2 tests: first phase resolves to `(start)`, later phase resolves to the previous phase's name.
+
+**`flattenAllPhases`** — 4 tests:
+
+- Flattens a simple linear workflow into a list of `PhaseDefinition`
+- Flattens subworkflow phases inline (replaces `SubworkflowReference` with its resolved phases)
+- Skips unresolved subworkflow refs
+- Handles nested subworkflows (subworkflow within subworkflow)
+
+**`buildContextPrompt` — all steps list** — 4 tests:
+
+- Includes numbered step list with all phases
+- Marks current phase with ▶ arrow marker (other phases unmarked)
+- Flattens subworkflow phases into the step list with correct numbering
+- Shows correct total count (includes phases from resolved subworkflows)
 
 **Default message constants** — 3 tests: each constant (`DEFAULT_NOT_DONE_REMINDER`, `DEFAULT_COMPLETION_MESSAGE`, `DEFAULT_CANCELLED_MESSAGE`) contains expected template variables.
 
@@ -163,25 +183,29 @@ Uses shared fixture definitions imported from `helpers/fixtures.ts` (see [Test H
 
 **`handleAgentEnd` — non-UI countdown tracked by TimerManager** — 2 tests: non-UI timeout is tracked by `timerManager`; `clearAll` cancels it, non-UI timeout fires `sendUserMessage` after 3s.
 
-### tool.test.ts (34 tests)
+### tool.test.ts (32 tests)
 
-**Status action** — 3 tests: no active workflow, current phase info when active, stale definition.
+**Status action** — 3 tests: no active workflow, current phase info when active (includes Previous/Current/Next lines), stale definition.
 
-**Next action** — 5 tests: advances phase and updates status, marks complete on last phase, entering subworkflow pushes new scope, exiting subworkflow pops scope, stale definition.
+**Status action — nested path** — 1 test: shows breadcrumb path and global step count when `currentPath.length > 1`.
+
+**Next action** — 4 tests: advances phase and updates status (includes Previous/Current/Next lines), marks complete on last phase (includes Previous/Current/Next lines), entering subworkflow pushes new scope (includes Previous/Current/Next lines), exiting subworkflow pops scope and advances parent (includes Previous/Current/Next lines).
+
+**Next action — stale/missing definition** — 2 tests: returns not-found message when definition is missing, returns 'No active workflow' when state is null.
+
+**Next action — defensive branches** — 2 tests: advance succeeds on happy path (cannot-advance branch is defensive), resolve failure after advance (defensive code path).
 
 **Cancel action** — 3 tests: first call sets `_cancelPending`, second call marks cancelled, no active workflow.
 
-**Loop action** — 3 tests: resets phase index, non-loopable returns error, no active workflow.
+**Loop action** — 2 tests: resets phase index, non-loopable returns error.
+
+**Loop action — edge cases** — 2 tests: no active workflow, resolves correctly after loop with definition present.
 
 **Summary parameter** — 1 test: stored in state when provided with next action.
 
 **`renderCall`** — 2 tests: returns Text component with tool name and action, renders different actions correctly.
 
-**`renderResult`** — 10 tests: error results, `Error:` prefix, `Could not` prefix, `Unknown action` prefix, `not found` content, cancel confirmation, cancelled result, completion result, normal results (first line only), Container for non-text/empty content.
-
-**Unknown action** — 1 test: returns unknown action message for invalid action.
-
-**Loop stale definition** — 1 test: resolves correctly after loop.
+**`renderResult`** — 10 tests: error results, `Error:` prefix, `Could not` prefix, `not found` content, cancel confirmation, cancelled result, completion result, normal results (first line only, excludes Previous:/Current: verbose output), Container for non-text/empty content.
 
 ### command.test.ts (28 tests)
 

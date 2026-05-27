@@ -102,6 +102,9 @@ describe("workflow_step tool", () => {
       expect(text).toContain("Phase 1");
       expect(text).toContain("Phase 2");
       expect(text).toContain("Do second");
+      expect(text).toContain("Previous: Phase 1");
+      expect(text).toContain("Current: 2️⃣ Phase 2");
+      expect(text).toContain("Next: Phase 3");
     });
 
     it("marks workflow complete on last phase", async () => {
@@ -115,7 +118,11 @@ describe("workflow_step tool", () => {
 
       expect(result.details.advanced).toBe(true);
       expect(result.details.to).toBe("DONE");
-      expect(resultText(result)).toContain("All phases complete");
+      const text = resultText(result);
+      expect(text).toContain("All phases complete");
+      expect(text).toContain("Previous: Phase 3");
+      expect(text).toContain("Current: ✅ Done");
+      expect(text).toContain("Next: DONE");
 
       const finalState = getState()!;
       expect(finalState.active).toBe(false);
@@ -143,6 +150,9 @@ describe("workflow_step tool", () => {
 
       const text = resultText(result);
       expect(text).toContain("Entered subworkflow");
+      expect(text).toContain("Previous: Sub Phase 1");
+      expect(text).toContain("Current: 🔨 Sub Phase 1");
+      expect(text).toContain("Next: Sub Phase 2");
     });
 
     it("exiting subworkflow pops scope and advances parent", async () => {
@@ -171,6 +181,9 @@ describe("workflow_step tool", () => {
 
       const text = resultText(result);
       expect(text).toContain("Exited subworkflow");
+      expect(text).toContain("Previous: Sub Phase 2");
+      expect(text).toContain("Current: 3️⃣ Phase 3");
+      expect(text).toContain("Next: DONE");
     });
   });
 
@@ -609,6 +622,8 @@ describe("workflow_step tool", () => {
       expect(rendered).toContain("Advanced: Phase 1");
       // Should NOT contain the verbose instructions
       expect(rendered).not.toContain("Do second");
+      expect(rendered).not.toContain("Previous:");
+      expect(rendered).not.toContain("Current:");
     });
 
     it("returns Container when content is not text", () => {

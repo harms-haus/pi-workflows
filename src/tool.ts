@@ -8,7 +8,9 @@ import type {
   SetState,
   GetDefinitions,
   WorkflowDefinition,
+  PhaseEntry,
 } from "./types";
+import { isSubworkflowRef } from "./types";
 import {
   advancePhase,
   persistState,
@@ -16,6 +18,8 @@ import {
   isActive,
   loopPhase,
   cloneState,
+  phaseEntryName,
+  resolveFirstPhase,
 } from "./state";
 
 // ── Result Types ──
@@ -45,6 +49,37 @@ function noActiveWorkflowResponse(description?: string): ActionResult {
     content: [textPart(text)],
     details: { active: false },
   };
+}
+
+/**
+ * Build the Previous/Current/Next step summary line.
+ * This is appended to handleNext output to give the agent context about
+ * what just completed, what's current, and what's coming next.
+ */
+function buildStepSummary(
+  prevName: string,
+  currentName: string,
+  currentEmoji: string,
+  nextName: string | null,
+): string {
+  const next = nextName ?? "DONE";
+  return `Previous: ${prevName} | Current: ${currentEmoji} ${currentName} | Next: ${next}`;
+}
+
+/**
+ * Compute the display name for the next phase after advancement.
+ * If nextPhase is a SubworkflowReference, drill into it to get the first concrete phase name.
+ */
+function computeNextPhaseName(nextPhase: PhaseEntry | null): string | null {
+  if (!nextPhase) return null;
+  if (isSubworkflowRef(nextPhase)) {
+    if (nextPhase.resolved) {
+      const first = resolveFirstPhase(nextPhase.resolved.phases);
+      return first ? first.name : phaseEntryName(nextPhase);
+    }
+    return phaseEntryName(nextPhase);
+  }
+  return phaseEntryName(nextPhase);
 }
 
 // ── Action Handlers ──
@@ -188,8 +223,16 @@ function handleNext(
     setState(doneState);
     persistState(pi, doneState);
     ctx.ui.setStatus("workflow", undefined);
+    const doneSummary = buildStepSummary(currentPhase.name, "Done", "✅", null);
     return {
-      content: [textPart(`✓ Advanced: ${currentPhase.name} → DONE\n\n🎉 **All phases complete!**`)],
+      content: [
+        textPart(
+          `✓ Advanced: ${currentPhase.name} → DONE\n\n` +
+            doneSummary +
+            "\n\n" +
+            `🎉 **All phases complete!**`,
+        ),
+      ],
       details: { advanced: true, from: currentPhase.name, to: "DONE" },
       resultType: "complete",
     };
@@ -223,10 +266,20 @@ function handleNext(
     advanceVerb = `Exited subworkflow, returning to ${parentBreadcrumb}`;
   }
 
+  const nextPhaseDisplay = computeNextPhaseName(newActive.nextPhase);
+  const stepSummary = buildStepSummary(
+    currentPhase.name,
+    newActive.currentPhase.name,
+    newActive.currentPhase.emoji,
+    nextPhaseDisplay,
+  );
+
   return {
     content: [
       textPart(
         `✓ ${advanceVerb}: ${currentPhase.name} → ${newActive.currentPhase.emoji} ${newActive.currentPhase.name}\n\n` +
+          stepSummary +
+          "\n\n" +
           `**What to do in ${newActive.currentPhase.name}:**\n` +
           newActive.currentPhase.instructions,
       ),

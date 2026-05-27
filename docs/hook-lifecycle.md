@@ -182,6 +182,7 @@ The prompt is assembled from these sections in order:
 | **Task details**       | `taskDescription`, `taskId`                      | From `state`                                    |
 | **Current phase**      | Emoji + name                                     | From `active.currentPhase`                      |
 | **Progress**           | `globalStepCount` and `phaseIndex`/total         | Format varies for linear vs nested              |
+| **All Steps**          | `flattenAllPhases(definition.phases)`            | Numbered list of all phases; `▶` marks current  |
 | **Phase instructions** | `currentPhase.instructions`                      | Template-resolved                               |
 | **Profiles**           | `availableProfiles` + all workflow profiles      | Lists per-phase and global profiles             |
 | **Advance reminder**   | `definition.advanceReminder` or default          | Reminds agent to call `workflow_step`           |
