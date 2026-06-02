@@ -291,14 +291,19 @@ During resolution, if a workflow references a `workflowKey` that doesn't exist i
 
 ## Path Safety
 
-Phase file paths listed in `workflow.yaml`'s `phases` array are subject to **path traversal protection**:
+Phase file paths listed in `workflow.yaml`'s `phases` array are subject to **path traversal protection**. The algorithm uses `path.relative()` to determine containment:
 
-1. The **canonical root** is computed via `realpathSync` on the resolved workflows root directory (either global or project).
-2. Each phase file path is **canonicalized** via `realpathSync` on the resolved absolute path of `join(dirPath, phaseEntry)`.
-3. The canonical phase path must start with `canonicalRoot + sep` (the root path plus the OS path separator).
-4. If the file doesn't exist on disk yet, a deterministic prefix check (`resolve` without `realpathSync`) is performed instead.
+1. **Canonicalize the root.** The workflows root directory (global or project) is resolved and canonicalized via `realpathSync(resolve(workflowsRoot))`.
+2. **Resolve the phase path.** The phase entry from the YAML is joined with the workflow directory via `resolve(dirPath, phaseEntry)`.
+3. **Canonicalize the phase path.** `realpathSync` is called on the resolved phase path. If the file doesn't exist on disk yet (causing `realpathSync` to throw), the unresolved resolved path is used as a fallback.
+4. **Windows case normalization.** On Windows (`process.platform === "win32"`), both the root and target paths are lowercased before comparison to account for NTFS case-insensitivity.
+5. **Relative path containment check.** `relative(root, target)` is computed. The path is considered **unsafe** — and rejected — if the result is:
+   - An empty string (`""`) — meaning the target is the root itself, not a file within it.
+   - Starts with `".."` — meaning the target is above the root.
+   - An absolute path — indicating a drive-letter or UNC mismatch on Windows.
+6. **Accept.** If none of the rejection conditions are met, the path is contained within the root and is accepted.
 
-**Effect:** Symlinks or relative segments like `../../etc/passwd` are resolved to their real path and rejected if they escape the workflows root. The workflow is skipped with a warning:
+**Effect:** Symlinks, `..` segments, and other traversal techniques like `../../etc/passwd` are resolved to their real path and rejected if they escape the workflows root. The workflow is skipped with a warning:
 
 ```
 [pi-workflows] Phase file path escapes workflows root: ../../etc/passwd in /path/to/workflow.yaml

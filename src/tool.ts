@@ -82,6 +82,18 @@ function computeNextPhaseName(nextPhase: PhaseEntry | null): string | null {
   return phaseEntryName(nextPhase);
 }
 
+/** Apply a new workflow state: update module state, persist, and clear status bar. */
+function updateWorkflowState(
+  pi: ExtensionAPI,
+  ctx: ExtensionContext,
+  setState: SetState,
+  newState: WorkflowState,
+): void {
+  setState(newState);
+  persistState(pi, newState);
+  ctx.ui.setStatus("workflow", undefined);
+}
+
 // ── Action Handlers ──
 
 /** Handle the "status" action: return current workflow status. */
@@ -158,10 +170,12 @@ function handleCancel(
   }
   // Two-step cancellation: first call requests confirmation, second call within the same turn confirms
   if (!state._cancelPending) {
-    // Intentionally mutate shared state without persisting — the _cancelPending flag
-    // acts as a volatile confirmation marker for the two-step cancel flow.
-    // It will be persisted only if the user confirms cancellation on the next call.
-    state._cancelPending = true;
+    // Clone state and set volatile confirmation flag (not persisted) — the
+    // _cancelPending flag acts as a volatile confirmation marker for the
+    // two-step cancel flow. It is set via setState but never persisted.
+    const pendingState = cloneState(state);
+    pendingState._cancelPending = true;
+    setState(pendingState);
     return {
       content: [
         textPart(
@@ -178,9 +192,7 @@ function handleCancel(
     cancelled: true,
     completionNotified: false,
   };
-  setState(newState);
-  persistState(pi, newState);
-  ctx.ui.setStatus("workflow", undefined);
+  updateWorkflowState(pi, ctx, setState, newState);
   return {
     content: [textPart(`Workflow cancelled: "${state.taskDescription}"`)],
     details: { active: false, cancelled: true },
@@ -220,9 +232,7 @@ function handleNext(
       active: false,
       completionNotified: false,
     };
-    setState(doneState);
-    persistState(pi, doneState);
-    ctx.ui.setStatus("workflow", undefined);
+    updateWorkflowState(pi, ctx, setState, doneState);
     const doneSummary = buildStepSummary(currentPhase.name, "Done", "✅", null);
     return {
       content: [
@@ -247,9 +257,7 @@ function handleNext(
       resultType: "error",
     };
   }
-  setState(newState);
-  persistState(pi, newState);
-  ctx.ui.setStatus("workflow", undefined); // Will be re-set by turn_end hook
+  updateWorkflowState(pi, ctx, setState, newState);
 
   const pathLenAfter = newState.currentPath.length;
   let advanceVerb = "Advanced";
@@ -312,8 +320,7 @@ function handleLoop(
     };
   }
   const newState = result.newState;
-  setState(newState);
-  persistState(pi, newState);
+  updateWorkflowState(pi, ctx, setState, newState);
   const newActive = resolveActive(newState, definitions);
   if (!newActive) {
     return {
@@ -322,7 +329,6 @@ function handleLoop(
       resultType: "error",
     };
   }
-  ctx.ui.setStatus("workflow", undefined); // will be re-set by turn_end
   // Identify which scope was looped
   const loopedScopeName =
     newActive.breadcrumb.length > 0

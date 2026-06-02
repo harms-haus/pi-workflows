@@ -18,7 +18,7 @@ Tests use Vitest's built-in `describe`/`it`/`expect` API. No additional assertio
 
 ## Test Files
 
-All tests live under `src/__tests__/`. There are 9 test files with **343 total test cases**.
+All tests live under `src/__tests__/`. There are 10 test files with **340 total test cases** (339 passed, 1 skipped).
 
 | File                | Tests | What's Covered                                                                                                                                                                                                              |
 | ------------------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -31,6 +31,7 @@ All tests live under `src/__tests__/`. There are 9 test files with **343 total t
 | `renderers.test.ts` | 10    | `registerRenderers` — `workflow:context`, `workflow:complete`, `workflow:countdown` renderers                                                                                                                               |
 | `TimerManager.test.ts` | 10  | `TimerManager` — `startInterval`, `startTimeout`, `clearAll`, stale callback prevention, timer replacement                                                          |
 | `index.test.ts`     | 23    | Extension entry point — event handler registration, `session_start`, `session_tree`, `tool_call`, `before_agent_start`, `agent_end`, `turn_end` handlers                                                                    |
+| `checkPathSafety-win32.test.ts` | 8 | `checkPathSafety` with Windows-style paths using `path.win32` — drive letters, UNC paths, case-insensitive matching, `..` traversal rejection, realpathSync fallback, root-level rejection |
 
 ### config.test.ts (84 tests)
 
@@ -265,6 +266,24 @@ Tests the extension entry point by mocking all sub-modules (`config`, `state`, `
 **`agent_end` handler** — 5 tests: persists when mutation says persist, unloads state when `unload=true`, updates state when `mutation.state` provided, catches stale errors, re-throws non-stale errors.
 
 **`turn_end` handler** — 3 tests: delegates to `updateStatus`, catches stale errors, re-throws non-stale errors.
+
+### checkPathSafety-win32.test.ts (8 tests)
+
+Tests the `checkPathSafety` function from `config/loading-phases` using Windows-style path utilities (`path.win32`). The test file mocks `node:path` to use win32 implementations (`resolve`, `relative`, `join`, etc.) and mocks `node:fs` (`realpathSync`) so tests run on any platform.
+
+**Accepts valid paths** — 1 test: phase file within workflows root returns `true`.
+
+**Rejects traversal** — 1 test: `..\\..\\etc\\evil.md` resolves outside root → `false`.
+
+**Rejects root-level path** — 1 test: `dirPath` equal to `workflowsRoot` (no subdirectory) → `false`.
+
+**realpathSync failure — safe path** — 1 test: `realpathSync` throws ENOENT for a phase file that is within root → falls back to non-canonical path → `true`.
+
+**realpathSync failure — unsafe path** — 1 test: `realpathSync` throws ENOENT for a path that escapes root → falls back to non-canonical path → `false`.
+
+**Case-insensitive match** — 1 test (skipped on non-Windows): mixed-case canonical paths still match as within root on Windows.
+
+**UNC paths** — 2 tests: UNC path within `\\server\\share\\workflows` root accepted; UNC path escaping to a different server/share rejected.
 
 ---
 

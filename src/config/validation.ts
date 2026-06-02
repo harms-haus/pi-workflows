@@ -1,5 +1,12 @@
 import type { WorkflowDefinition, PhaseDefinition, PhaseEntry } from "../types";
-import { isSubworkflowRef } from "../types";
+import { isSubworkflowRef, lookupWorkflowKey } from "../types";
+
+// ── Types ──
+
+export interface CycleError {
+  message: string;
+  cycleKeys: string[];
+}
 
 // ── Constants ──
 export const VALID_COMMAND_NAME_RE = /^[a-zA-Z0-9_-]+$/;
@@ -169,7 +176,7 @@ function buildAdjacencyList(
     const def = definitions[key];
     if (!def) continue;
     for (const phase of def.phases) {
-      if (isSubworkflowRef(phase) && phase.workflowKey in definitions) {
+      if (isSubworkflowRef(phase) && lookupWorkflowKey(definitions, phase.workflowKey) !== null) {
         neighbors.push(phase.workflowKey);
       }
     }
@@ -185,7 +192,7 @@ function processNeighbor(
   parent: Map<string, string>,
   color: Map<string, number>,
   stack: Array<{ key: string; neighborIdx: number; phase: "enter" | "exit" }>,
-  errors: string[],
+  errors: CycleError[],
 ): void {
   const WHITE = 0,
     GRAY = 1;
@@ -194,9 +201,10 @@ function processNeighbor(
   if (neighborColor === GRAY) {
     parent.set(neighbor, topKey);
     const cycleKeys = reconstructCycle(topKey, neighbor, parent);
-    errors.push(
-      `Cycle detected: ${cycleKeys.join(" → ")} → ${cycleKeys[0]}. Skipping workflow "${cycleKeys[0]}".`,
-    );
+    errors.push({
+      message: `Cycle detected: ${cycleKeys.join(" → ")} → ${cycleKeys[0]}. Skipping workflow "${cycleKeys[0]}".`,
+      cycleKeys,
+    });
   } else if (neighborColor === WHITE) {
     parent.set(neighbor, topKey);
     stack.push({ key: neighbor, neighborIdx: 0, phase: "enter" });
@@ -208,8 +216,8 @@ function processNeighbor(
  * Uses iterative DFS with 3-state coloring (WHITE/GRAY/BLACK).
  * Returns an array of error messages (empty = no cycles).
  */
-export function detectCycles(definitions: Record<string, WorkflowDefinition>): string[] {
-  const errors: string[] = [];
+export function detectCycles(definitions: Record<string, WorkflowDefinition>): CycleError[] {
+  const errors: CycleError[] = [];
   const keys = Object.keys(definitions);
   const adj = buildAdjacencyList(definitions);
 

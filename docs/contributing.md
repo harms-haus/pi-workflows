@@ -4,7 +4,7 @@ Thank you for your interest in contributing. This guide covers everything you ne
 
 ## Development Setup
 
-**Prerequisites:** [Node.js](https://nodejs.org/) (v20+ recommended) and npm.
+**Prerequisites:** [Node.js](https://nodejs.org/) (v22+ required) and npm.
 
 ```bash
 git clone <repo-url>
@@ -21,6 +21,8 @@ npm test
 ```
 
 This runs `vitest run` — tests live in `src/__tests__/` and are matched by the pattern `src/__tests__/**/*.test.ts`.
+
+> **Note:** CI runs on both **ubuntu-latest** and **windows-latest** (Node.js 22 and 24). Make sure your changes work cross-platform.
 
 ## Project Structure
 
@@ -52,6 +54,7 @@ pi-workflows/
 │       ├── prompts.test.ts
 │       ├── renderers.test.ts
 │       ├── setup.ts
+│       ├── checkPathSafety-win32.test.ts
 │       ├── state.test.ts
 │       ├── tool.test.ts
 │       └── helpers/

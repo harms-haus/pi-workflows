@@ -209,3 +209,29 @@ export type GetState = () => WorkflowState | null;
 export type SetState = (s: WorkflowState | null) => void;
 export type GetDefinitions = () => Record<string, WorkflowDefinition>;
 export type ReloadDefinitions = (cwd?: string) => Promise<Record<string, WorkflowDefinition>>;
+
+// ── Platform-aware key helpers ──
+
+/** Normalize a workflow key for lookup. On Windows, lowercase the key. */
+export function normalizeWorkflowKey(key: string): string {
+  return process.platform === "win32" ? key.toLowerCase() : key;
+}
+
+/** Case-insensitive key lookup for workflow definitions on Windows.
+ *  Returns [originalKey, definition] or null if not found. */
+export function lookupWorkflowKey(
+  definitions: Record<string, WorkflowDefinition>,
+  key: string,
+): [string, WorkflowDefinition] | null {
+  if (process.platform !== "win32") {
+    const def = definitions[key];
+    return def ? [key, def] : null;
+  }
+  const lower = key.toLowerCase();
+  for (const [k, def] of Object.entries(definitions)) {
+    if (k.toLowerCase() === lower) {
+      return [k, def];
+    }
+  }
+  return null;
+}

@@ -31,7 +31,15 @@ vi.mock("node:path", () => ({
   join: (...args: string[]) => args.join("/"),
   resolve: (...args: string[]) => "/" + args.join("/"),
   sep: "/",
-}));
+  relative: (...args: string[]) => {
+    const root = args[0] ?? "";
+    const target = args[1] ?? "";
+    if (target.startsWith(root + "/")) return target.slice(root.length + 1);
+    if (target === root) return "";
+    return "../" + target;
+  },
+  isAbsolute: (p: string) => p.startsWith("/"),
+}))
 
 vi.mock("node:os", () => ({
   homedir: mockHomedir,
@@ -254,7 +262,8 @@ describe("detectCycles", () => {
     };
     const errors = detectCycles(defs);
     expect(errors.length).toBeGreaterThan(0);
-    expect(errors[0]).toContain("Cycle detected");
+    expect(errors[0]!.message).toContain("Cycle detected");
+    expect(errors[0]!.cycleKeys).toEqual(["a"]);
   });
 
   it("A → B → A → cycle found", () => {
@@ -268,7 +277,8 @@ describe("detectCycles", () => {
     };
     const errors = detectCycles(defs);
     expect(errors.length).toBeGreaterThan(0);
-    expect(errors[0]).toContain("Cycle detected");
+    expect(errors[0]!.message).toContain("Cycle detected");
+    expect(errors[0]!.cycleKeys.sort()).toEqual(["a", "b"].sort());
   });
 
   it("A → B → C → A → cycle found", () => {
@@ -285,7 +295,8 @@ describe("detectCycles", () => {
     };
     const errors = detectCycles(defs);
     expect(errors.length).toBeGreaterThan(0);
-    expect(errors[0]).toContain("Cycle detected");
+    expect(errors[0]!.message).toContain("Cycle detected");
+    expect(errors[0]!.cycleKeys.sort()).toEqual(["a", "b", "c"].sort());
   });
 
   it("DAG with multiple paths → empty array", () => {
@@ -1638,7 +1649,7 @@ describe("detectCycles – additional edge cases", () => {
     };
     const errors = detectCycles(defs);
     expect(errors.length).toBeGreaterThan(0);
-    expect(errors[0]).toContain("Cycle detected");
+    expect(errors[0]!.message).toContain("Cycle detected");
   });
 
   it("skips subworkflow refs to non-existent workflows", () => {

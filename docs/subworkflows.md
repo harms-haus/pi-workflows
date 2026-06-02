@@ -406,6 +406,7 @@ For the complete `workflow.yaml` schema including all fields (role instructions,
 | `PathSegment`          | A navigation stack element. Fields: `workflowKey`, `phaseIndex`                                          |
 | `PhaseEntry`           | Union type: `PhaseDefinition \| SubworkflowReference`                                                    |
 | `ActiveWorkflow`       | Resolved runtime state. Includes `breadcrumb` array for display                                          |
+| `CycleError`           | Structured cycle error (`config/validation.ts`). Fields: `message: string`, `cycleKeys: string[]`        |
 
 ### Type guards
 
@@ -419,7 +420,7 @@ For the complete `workflow.yaml` schema including all fields (role instructions,
 | Function                               | Module                 | Purpose                                                                                                            |
 | -------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | `loadWorkflows(cwd?)`                  | `config/loading.ts`    | Two-pass loading: directories → validate → cycle detect → resolve references                                       |
-| `detectCycles(definitions)`            | `config/validation.ts` | DFS 3-color cycle detection; returns error messages for cycles found                                               |
+| `detectCycles(definitions)`            | `config/validation.ts` | DFS 3-color cycle detection; returns `CycleError[]` with `.message` and `.cycleKeys` for each cycle found          |
 | `validateWorkflowDefinition(key, def)` | `config/validation.ts` | Validates a single definition; relaxed rules when `show: "workflows"`                                              |
 | `advancePhase(state, definitions)`     | `state.ts`             | Four-case stack navigation (enter/advance/done/breakout)                                                           |
 | `loopPhase(state, definitions)`        | `state.ts`             | Restart innermost scope from phase 0                                                                               |

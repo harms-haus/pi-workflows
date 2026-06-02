@@ -1,5 +1,5 @@
 import type { WorkflowDefinition } from "../types";
-import { isSubworkflowRef } from "../types";
+import { isSubworkflowRef, lookupWorkflowKey } from "../types";
 import { detectCycles } from "./validation";
 
 // ── Post-processing helpers for loadWorkflows ──
@@ -21,13 +21,10 @@ export function removeCycles(
   if (cycleErrors.length === 0) return valid;
 
   const cycleKeys = new Set<string>();
-  for (const msg of cycleErrors) {
-    console.warn(`[pi-workflows] ${msg}`);
-    const match = msg.match(/^Cycle detected: (.+?)\. /);
-    if (match && match[1] !== undefined) {
-      for (const k of match[1].split(" → ")) {
-        cycleKeys.add(k);
-      }
+  for (const cycleError of cycleErrors) {
+    console.warn(`[pi-workflows] ${cycleError.message}`);
+    for (const k of cycleError.cycleKeys) {
+      cycleKeys.add(k);
     }
   }
   return removeKeys(valid, cycleKeys);
@@ -45,14 +42,15 @@ export function resolveSubworkflowRefs(
     for (const [key, def] of Object.entries(current)) {
       for (const phase of def.phases) {
         if (isSubworkflowRef(phase) && phase.resolved === null) {
-          const targetDef = current[phase.workflowKey];
-          if (!(phase.workflowKey in current) || !targetDef) {
+          const lookup = lookupWorkflowKey(current, phase.workflowKey);
+          if (!lookup) {
             console.warn(
               `[pi-workflows] Workflow "${key}" references non-existent subworkflow "${phase.workflowKey}". Skipping.`,
             );
             keysToRemove.push(key);
             break;
           }
+          const [, targetDef] = lookup;
           phase.resolved = targetDef;
         }
       }

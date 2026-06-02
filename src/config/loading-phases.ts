@@ -1,5 +1,5 @@
 import { readFileSync, realpathSync } from "node:fs";
-import { resolve, sep } from "node:path";
+import { resolve, relative, isAbsolute } from "node:path";
 import { parseFrontmatter } from "@earendil-works/pi-coding-agent";
 import type { PhaseDefinition } from "../types";
 import { extractPhaseMetadata } from "./loading-parse";
@@ -25,22 +25,27 @@ export function checkPathSafety(
 ): boolean {
   const canonicalRoot = realpathSync(resolve(workflowsRoot));
   const phaseFilePath = resolve(dirPath, phaseEntry);
+
+  let canonicalPhase: string;
   try {
-    const canonicalPhase = realpathSync(phaseFilePath);
-    if (!canonicalPhase.startsWith(canonicalRoot + sep)) {
-      console.warn(
-        `[pi-workflows] Phase file path escapes workflows root: ${phaseEntry} in ${yamlPath}`,
-      );
-      return false;
-    }
+    canonicalPhase = realpathSync(phaseFilePath);
   } catch {
-    const resolvedPath = resolve(dirPath, phaseEntry);
-    if (!resolvedPath.startsWith(canonicalRoot + sep)) {
-      console.warn(
-        `[pi-workflows] Phase file path escapes workflows root: ${phaseEntry} in ${yamlPath}`,
-      );
-      return false;
-    }
+    canonicalPhase = phaseFilePath;
+  }
+
+  // Normalize case on Windows (NTFS is case-insensitive)
+  const normalizeForComparison =
+    process.platform === "win32" ? (p: string) => p.toLowerCase() : (p: string) => p;
+
+  const root = normalizeForComparison(canonicalRoot);
+  const target = normalizeForComparison(canonicalPhase);
+  const rel = relative(root, target);
+
+  if (rel === "" || rel.startsWith("..") || isAbsolute(rel)) {
+    console.warn(
+      `[pi-workflows] Phase file path escapes workflows root: ${phaseEntry} in ${yamlPath}`,
+    );
+    return false;
   }
   return true;
 }

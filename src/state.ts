@@ -86,78 +86,83 @@ export function resolveFirstPhase(phases: PhaseEntry[]): PhaseDefinition | null 
   return null;
 }
 
-// ── State Advancement ──
+// ── State Advancement Helpers ──
+
+type AdvanceResult = { advanced: true; from: string; to: string | null; newState: WorkflowState };
 
 /**
- * Advance to the next phase using stack-based navigation.
- * Handles subworkflow entry, normal advancement, subworkflow breakout,
- * and top-level completion.
- * Returns a new state object — the original state is not mutated.
+ * Enter a subworkflow: push a new path segment and resolve the first phase.
  */
-export function advancePhase(
-  state: WorkflowState,
+function enterSubworkflow(
+  s: WorkflowState,
   definitions: Record<string, WorkflowDefinition>,
-): { advanced: true; from: string; to: string | null; newState: WorkflowState } {
-  const s = cloneState(state);
-  /* eslint-disable @typescript-eslint/no-non-null-assertion */
-  const top = s.currentPath[s.currentPath.length - 1]!;
-  const topDef = definitions[top.workflowKey]!;
-  const currentEntry = topDef.phases[top.phaseIndex]!;
-  /* eslint-enable @typescript-eslint/no-non-null-assertion */
-
-  // Case 1: Entering a subworkflow
-  if (isSubworkflowRef(currentEntry)) {
-    s.currentPath.push({ workflowKey: currentEntry.workflowKey, phaseIndex: 0 });
-    s.globalStepCount++;
-    const subDef = definitions[currentEntry.workflowKey];
-    if (!subDef) {
-      console.warn(
-        `[pi-workflows] Missing definition for subworkflow '${currentEntry.workflowKey}' during advance.`,
-      );
-      s.active = false;
-      s.completionNotified = false;
-      return { advanced: true, from: phaseEntryName(currentEntry), to: null, newState: s };
-    }
-    const firstPhaseName = subDef.phases[0]
-      ? phaseEntryName(subDef.phases[0])
-      : currentEntry.workflowKey;
-    return { advanced: true, from: phaseEntryName(currentEntry), to: firstPhaseName, newState: s };
-  }
-
-  // Case 2: Normal phase, not the last one — advance within current scope
-  if (top.phaseIndex < topDef.phases.length - 1) {
-    top.phaseIndex += 1;
-    s.globalStepCount++;
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    const nextEntry = topDef.phases[top.phaseIndex]!;
-    if (isSubworkflowRef(nextEntry)) {
-      const { phaseName: concreteName, newState: entered } = autoEnterSubworkflowRefs(s, nextEntry);
-      return {
-        advanced: true,
-        from: currentEntry.name,
-        to: concreteName ?? phaseEntryName(nextEntry),
-        newState: entered,
-      };
-    }
-    return { advanced: true, from: currentEntry.name, to: phaseEntryName(nextEntry), newState: s };
-  }
-
-  // Case 3: Last phase in current scope — top-level done
-  if (s.currentPath.length === 1) {
+  currentEntry: SubworkflowReference,
+): AdvanceResult {
+  s.currentPath.push({ workflowKey: currentEntry.workflowKey, phaseIndex: 0 });
+  s.globalStepCount++;
+  const subDef = definitions[currentEntry.workflowKey];
+  if (!subDef) {
+    console.warn(
+      `[pi-workflows] Missing definition for subworkflow '${currentEntry.workflowKey}' during advance.`,
+    );
     s.active = false;
     s.completionNotified = false;
-    s.globalStepCount++;
-    return { advanced: true, from: currentEntry.name, to: null, newState: s };
+    return { advanced: true, from: phaseEntryName(currentEntry), to: null, newState: s };
   }
+  const firstPhaseName = subDef.phases[0]
+    ? phaseEntryName(subDef.phases[0])
+    : currentEntry.workflowKey;
+  return { advanced: true, from: phaseEntryName(currentEntry), to: firstPhaseName, newState: s };
+}
 
-  // Case 4: Last phase in subworkflow — breakout to parent
-  // The subworkflow was the parent's last phase, so we may need to
-  // keep popping until we find a parent with a next phase or reach top-level completion.
+/**
+ * Normal advance: increment phaseIndex and handle auto-entering subworkflow refs.
+ */
+function normalAdvance(
+  s: WorkflowState,
+  _definitions: Record<string, WorkflowDefinition>,
+  top: WorkflowState["currentPath"][number],
+  topDef: WorkflowDefinition,
+  currentEntry: PhaseDefinition,
+): AdvanceResult {
+  top.phaseIndex += 1;
+  s.globalStepCount++;
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  const nextEntry = topDef.phases[top.phaseIndex]!;
+  if (isSubworkflowRef(nextEntry)) {
+    const { phaseName: concreteName, newState: entered } = autoEnterSubworkflowRefs(s, nextEntry);
+    return {
+      advanced: true,
+      from: currentEntry.name,
+      to: concreteName ?? phaseEntryName(nextEntry),
+      newState: entered,
+    };
+  }
+  return { advanced: true, from: currentEntry.name, to: phaseEntryName(nextEntry), newState: s };
+}
+
+/**
+ * Top-level done: mark workflow as inactive.
+ */
+function topLevelDone(s: WorkflowState, currentEntry: PhaseDefinition): AdvanceResult {
+  s.active = false;
+  s.completionNotified = false;
+  s.globalStepCount++;
+  return { advanced: true, from: currentEntry.name, to: null, newState: s };
+}
+
+/**
+ * Breakout from subworkflow: pop the current path segment, find the parent scope's
+ * next phase, and handle cascading pops when parent scopes are also exhausted.
+ */
+function breakoutFromSubworkflow(
+  s: WorkflowState,
+  definitions: Record<string, WorkflowDefinition>,
+  currentEntry: PhaseDefinition,
+): AdvanceResult {
   s.currentPath.pop();
   s.globalStepCount++;
 
-  // Loop: increment the parent's phase index and check if it has a next phase.
-  // If the parent is also exhausted, pop again and continue.
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   let newTop = s.currentPath[s.currentPath.length - 1]!;
   let newTopDef: WorkflowDefinition | undefined = definitions[newTop.workflowKey];
@@ -170,13 +175,11 @@ export function advancePhase(
   newTop.phaseIndex += 1;
 
   while (newTop.phaseIndex >= newTopDef.phases.length) {
-    // Parent has no more phases — check if top-level
     if (s.currentPath.length === 1) {
       s.active = false;
       s.completionNotified = false;
       return { advanced: true, from: currentEntry.name, to: null, newState: s };
     }
-    // Nested parent also exhausted — pop again and continue
     s.currentPath.pop();
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     newTop = s.currentPath[s.currentPath.length - 1]!;
@@ -204,6 +207,37 @@ export function advancePhase(
     };
   }
   return { advanced: true, from: currentEntry.name, to: phaseEntryName(nextEntry), newState: s };
+}
+
+// ── State Advancement ──
+
+/**
+ * Advance to the next phase using stack-based navigation.
+ * Handles subworkflow entry, normal advancement, subworkflow breakout,
+ * and top-level completion.
+ * Returns a new state object — the original state is not mutated.
+ */
+export function advancePhase(
+  state: WorkflowState,
+  definitions: Record<string, WorkflowDefinition>,
+): AdvanceResult {
+  const s = cloneState(state);
+  /* eslint-disable @typescript-eslint/no-non-null-assertion */
+  const top = s.currentPath[s.currentPath.length - 1]!;
+  const topDef = definitions[top.workflowKey]!;
+  const currentEntry = topDef.phases[top.phaseIndex]!;
+  /* eslint-enable @typescript-eslint/no-non-null-assertion */
+
+  if (isSubworkflowRef(currentEntry)) {
+    return enterSubworkflow(s, definitions, currentEntry);
+  }
+  if (top.phaseIndex < topDef.phases.length - 1) {
+    return normalAdvance(s, definitions, top, topDef, currentEntry);
+  }
+  if (s.currentPath.length === 1) {
+    return topLevelDone(s, currentEntry);
+  }
+  return breakoutFromSubworkflow(s, definitions, currentEntry);
 }
 
 // ── Loop Phase ──
