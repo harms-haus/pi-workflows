@@ -2,7 +2,12 @@
 // All existing imports from "./config" or "../config" resolve through this file.
 
 export { resolveTemplate, getBlockedTools, getWhitelist } from "./templates";
-export { validateWorkflowDefinition, detectCycles, VALID_COMMAND_NAME_RE, type CycleError } from "./validation";
+export {
+  validateWorkflowDefinition,
+  detectCycles,
+  VALID_COMMAND_NAME_RE,
+  type CycleError,
+} from "./validation";
 export {
   findWorkflowByCommandName,
   loadWorkflowFromDir,

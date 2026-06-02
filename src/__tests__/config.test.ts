@@ -39,7 +39,7 @@ vi.mock("node:path", () => ({
     return "../" + target;
   },
   isAbsolute: (p: string) => p.startsWith("/"),
-}))
+}));
 
 vi.mock("node:os", () => ({
   homedir: mockHomedir,

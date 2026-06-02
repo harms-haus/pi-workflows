@@ -128,26 +128,23 @@ describe("checkPathSafety — Windows paths", () => {
     expect(checkPathSafety(phaseEntry, dirPath, workflowsRoot, "test.yaml")).toBe(false);
   });
 
-  it.skipIf(process.platform !== "win32")(
-    "case-insensitive match on Windows",
-    () => {
-      const workflowsRoot = wp().resolve("C:\\Workflows");
-      const dirPath = wp().resolve("C:\\Workflows\\my-wf");
-      const phaseEntry = "phase.md";
-      // Canonical root has mixed case, canonical phase has different case
-      const canonicalRoot = "C:\\Workflows";
-      const canonicalPhase = "c:\\WORKFLOWS\\my-wf\\phase.md";
+  it.skipIf(process.platform !== "win32")("case-insensitive match on Windows", () => {
+    const workflowsRoot = wp().resolve("C:\\Workflows");
+    const dirPath = wp().resolve("C:\\Workflows\\my-wf");
+    const phaseEntry = "phase.md";
+    // Canonical root has mixed case, canonical phase has different case
+    const canonicalRoot = "C:\\Workflows";
+    const canonicalPhase = "c:\\WORKFLOWS\\my-wf\\phase.md";
 
-      vi.mocked(realpathSync).mockImplementation((p: any) => {
-        const resolvedRoot = wp().resolve(workflowsRoot);
-        if (p === resolvedRoot) return canonicalRoot;
-        if (p === wp().resolve(dirPath, phaseEntry)) return canonicalPhase;
-        throw new Error(`Unexpected realpathSync: ${p}`);
-      });
+    vi.mocked(realpathSync).mockImplementation((p: any) => {
+      const resolvedRoot = wp().resolve(workflowsRoot);
+      if (p === resolvedRoot) return canonicalRoot;
+      if (p === wp().resolve(dirPath, phaseEntry)) return canonicalPhase;
+      throw new Error(`Unexpected realpathSync: ${p}`);
+    });
 
-      expect(checkPathSafety(phaseEntry, dirPath, workflowsRoot, "test.yaml")).toBe(true);
-    },
-  );
+    expect(checkPathSafety(phaseEntry, dirPath, workflowsRoot, "test.yaml")).toBe(true);
+  });
 
   it("UNC path within root", () => {
     const workflowsRoot = wp().resolve("\\\\server\\share\\workflows");
