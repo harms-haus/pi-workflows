@@ -92,9 +92,9 @@ describe("index module", () => {
     expect(typeof indexModule).toBe("function");
   });
 
-  it("registers all 6 event handlers via pi.on", () => {
+  it("registers all 7 event handlers via pi.on", () => {
     const { on } = initAndGetHandlers();
-    expect(on).toHaveBeenCalledTimes(6);
+    expect(on).toHaveBeenCalledTimes(7);
     const eventNames = (on.mock.calls as [string, unknown][]).map(([name]) => name);
     expect(eventNames).toContain("session_start");
     expect(eventNames).toContain("session_tree");
@@ -102,6 +102,7 @@ describe("index module", () => {
     expect(eventNames).toContain("before_agent_start");
     expect(eventNames).toContain("agent_end");
     expect(eventNames).toContain("turn_end");
+    expect(eventNames).toContain("context");
   });
 
   it("registers the workflow tool via registerWorkflowTool", () => {
@@ -342,6 +343,88 @@ describe("agent_end handler", () => {
     expect(() => handlers["agent_end"]!({ type: "agent_end", messages: [] }, ctx)).toThrow(
       "something broke",
     );
+  });
+});
+
+describe("context handler", () => {
+  it("filters out workflow:complete messages", async () => {
+    const { handlers } = initAndGetHandlers();
+    const event = {
+      messages: [
+        { role: "user", content: "hello" },
+        { role: "custom", customType: "workflow:complete", content: "Done!", display: true, timestamp: 1000 },
+        { role: "user", content: "world" },
+      ],
+    };
+
+    const result = await handlers["context"]!(event, {});
+
+    expect(result.messages).toHaveLength(2);
+    expect(result.messages.map((m: { role: string }) => m.role)).toEqual(["user", "user"]);
+    expect(result.messages.every((m: { customType?: string }) => m.customType !== "workflow:complete")).toBe(true);
+  });
+
+  it("filters out workflow:countdown messages", async () => {
+    const { handlers } = initAndGetHandlers();
+    const event = {
+      messages: [
+        { role: "user", content: "hello" },
+        { role: "custom", customType: "workflow:countdown", content: "3...", display: true, timestamp: 1000 },
+        { role: "user", content: "world" },
+      ],
+    };
+
+    const result = await handlers["context"]!(event, {});
+
+    expect(result.messages).toHaveLength(2);
+    expect(result.messages.every((m: { customType?: string }) => m.customType !== "workflow:countdown")).toBe(true);
+  });
+
+  it("preserves workflow:context messages", async () => {
+    const { handlers } = initAndGetHandlers();
+    const event = {
+      messages: [
+        { role: "custom", customType: "workflow:context", content: "instructions", display: false, timestamp: 1000 },
+        { role: "user", content: "hello" },
+      ],
+    };
+
+    const result = await handlers["context"]!(event, {});
+
+    expect(result.messages).toHaveLength(2);
+    expect(result.messages[0]).toHaveProperty("customType", "workflow:context");
+  });
+
+  it("returns undefined when no filtering needed", async () => {
+    const { handlers } = initAndGetHandlers();
+    const event = {
+      messages: [
+        { role: "user", content: "hello" },
+        { role: "user", content: "world" },
+      ],
+    };
+
+    const result = await handlers["context"]!(event, {});
+
+    expect(result).toBeUndefined();
+  });
+
+  it("filters both workflow:complete and workflow:countdown in same event", async () => {
+    const { handlers } = initAndGetHandlers();
+    const event = {
+      messages: [
+        { role: "user", content: "before" },
+        { role: "custom", customType: "workflow:complete", content: "Done!", display: true, timestamp: 1000 },
+        { role: "user", content: "middle" },
+        { role: "custom", customType: "workflow:countdown", content: "3...", display: true, timestamp: 2000 },
+        { role: "user", content: "after" },
+      ],
+    };
+
+    const result = await handlers["context"]!(event, {});
+
+    expect(result.messages).toHaveLength(3);
+    expect(result.messages.map((m: { role: string; content: string }) => m.content)).toEqual(["before", "middle", "after"]);
   });
 });
 

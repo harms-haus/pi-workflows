@@ -91,6 +91,21 @@ export default function (pi: ExtensionAPI): void {
     });
   });
 
+  pi.on("context", (event: { messages: Record<string, unknown>[] }) => {
+    const hasCustomMessages = event.messages.some((m) => m.role === "custom");
+    if (!hasCustomMessages) return undefined;
+
+    const filtered = event.messages.filter(
+      (m) =>
+        !(
+          m.role === "custom" &&
+          "customType" in m &&
+          (m.customType === "workflow:complete" || m.customType === "workflow:countdown")
+        ),
+    );
+    return { messages: filtered };
+  });
+
   registerWorkflowTool(pi, getState, getDefinitions, setState);
   registerWorkflowCommand(pi, getState, reloadDefinitions, setState);
   registerCancelWorkflowCommand(pi, getState, setState);
