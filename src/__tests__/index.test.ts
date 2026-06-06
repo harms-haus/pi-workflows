@@ -363,12 +363,12 @@ describe("context handler", () => {
       ],
     };
 
-    const result = await handlers["context"]!(event, {});
+    const result = (await handlers["context"]!(event, {})) as {
+      messages: { customType?: string }[];
+    };
 
     expect(result.messages).toHaveLength(2);
-    expect(
-      result.messages.every((m: { customType?: string }) => m.customType !== "workflow:countdown"),
-    ).toBe(true);
+    expect(result.messages.every((m) => m.customType !== "workflow:countdown")).toBe(true);
   });
 
   it("preserves workflow:context messages", async () => {
@@ -386,7 +386,9 @@ describe("context handler", () => {
       ],
     };
 
-    const result = await handlers["context"]!(event, {});
+    const result = (await handlers["context"]!(event, {})) as {
+      messages: { customType?: string }[];
+    };
 
     expect(result.messages).toHaveLength(2);
     expect(result.messages[0]).toHaveProperty("customType", "workflow:context");

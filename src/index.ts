@@ -1,4 +1,4 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ContextEvent } from "@earendil-works/pi-coding-agent";
 import type { WorkflowState, WorkflowDefinition } from "./types";
 import { loadWorkflows } from "./config";
 import { persistState, reconstructState } from "./state";
@@ -91,12 +91,14 @@ export default function (pi: ExtensionAPI): void {
     });
   });
 
-  pi.on("context", (event: { messages: Record<string, unknown>[] }) => {
-    const hasCustomMessages = event.messages.some((m) => m.role === "custom");
+  pi.on("context", (event: ContextEvent) => {
+    const hasCustomMessages = event.messages.some(
+      (m): m is Extract<typeof m, { role: "custom" }> => "role" in m && m.role === "custom",
+    );
     if (!hasCustomMessages) return undefined;
 
     const filtered = event.messages.filter(
-      (m) => !(m.role === "custom" && "customType" in m && m.customType === "workflow:countdown"),
+      (m) => !("role" in m && m.role === "custom" && m.customType === "workflow:countdown"),
     );
     return { messages: filtered };
   });
