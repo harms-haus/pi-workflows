@@ -27,10 +27,9 @@ describe("registerRenderers", () => {
     registerRenderers(mock.api);
   });
 
-  it("calls registerMessageRenderer 3 times with correct message types", () => {
-    expect(registerMessageRenderer).toHaveBeenCalledTimes(3);
+  it("calls registerMessageRenderer 2 times with correct message types", () => {
+    expect(registerMessageRenderer).toHaveBeenCalledTimes(2);
     expect(registerMessageRenderer).toHaveBeenCalledWith("workflow:context", expect.any(Function));
-    expect(registerMessageRenderer).toHaveBeenCalledWith("workflow:complete", expect.any(Function));
     expect(registerMessageRenderer).toHaveBeenCalledWith(
       "workflow:countdown",
       expect.any(Function),
@@ -70,44 +69,6 @@ describe("registerRenderers", () => {
       const resultB = renderer({ content: "BBB" }, {}, mockTheme) as Text;
 
       expect(resultA.render(80)).toBe(resultB.render(80));
-    });
-  });
-
-  describe("workflow:complete renderer", () => {
-    it("returns a Text instance", () => {
-      const calls = registerMessageRenderer.mock.calls as Array<
-        [string, (...args: Array<unknown>) => unknown]
-      >;
-      const renderer = getRenderer(calls, "workflow:complete");
-
-      const result = renderer({ content: "done" }, {}, mockTheme);
-      expect(result).toBeInstanceOf(Text);
-    });
-
-    it("extracts string content from the message", () => {
-      const calls = registerMessageRenderer.mock.calls as Array<
-        [string, (...args: Array<unknown>) => unknown]
-      >;
-      const renderer = getRenderer(calls, "workflow:complete");
-
-      const result = renderer({ content: "Workflow completed!" }, {}, mockTheme) as Text;
-      const rendered = result.render(80);
-
-      expect(rendered).toContain("Workflow completed!");
-      expect(rendered).toContain("<bold>Workflow completed!</bold>");
-      expect(rendered).toContain("<success>");
-    });
-
-    it("handles non-string content gracefully", () => {
-      const calls = registerMessageRenderer.mock.calls as Array<
-        [string, (...args: Array<unknown>) => unknown]
-      >;
-      const renderer = getRenderer(calls, "workflow:complete");
-
-      const result = renderer({ content: 42 }, {}, mockTheme) as Text;
-      const rendered = result.render(80);
-
-      expect(rendered).toContain("<success><bold></bold></success>");
     });
   });
 

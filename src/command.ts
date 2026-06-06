@@ -182,13 +182,6 @@ export function registerCancelWorkflowCommand(
       // Clear the status
       ctx.ui.setStatus("workflow", undefined);
 
-      // Send cancellation notification immediately (bypass agent_end hook)
-      const msg = `❌ **Workflow Cancelled**\n\n**Task:** ${state.taskDescription}\n**Task ID:** ${state.taskId}`;
-      pi.sendMessage(
-        { customType: "workflow:complete", content: msg, display: true },
-        { triggerTurn: false },
-      );
-
       // Unload immediately so agent_end hook sees null state and does nothing
       setState(null);
 

@@ -1,11 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  buildContextPrompt,
-  flattenAllPhases,
-  DEFAULT_NOT_DONE_REMINDER,
-  DEFAULT_COMPLETION_MESSAGE,
-  DEFAULT_CANCELLED_MESSAGE,
-} from "../prompts";
+import { buildContextPrompt, flattenAllPhases, DEFAULT_NOT_DONE_REMINDER } from "../prompts";
 import type {
   PhaseDefinition,
   SubworkflowReference,
@@ -412,16 +406,6 @@ describe("default message constants", () => {
   it("DEFAULT_NOT_DONE_REMINDER contains template variables", () => {
     expect(DEFAULT_NOT_DONE_REMINDER).toContain("{workflowName}");
     expect(DEFAULT_NOT_DONE_REMINDER).toContain("{phaseName}");
-  });
-
-  it("DEFAULT_COMPLETION_MESSAGE contains template variables", () => {
-    expect(DEFAULT_COMPLETION_MESSAGE).toContain("{workflowName}");
-    expect(DEFAULT_COMPLETION_MESSAGE).toContain("{taskDescription}");
-  });
-
-  it("DEFAULT_CANCELLED_MESSAGE contains template variables", () => {
-    expect(DEFAULT_CANCELLED_MESSAGE).toContain("{workflowName}");
-    expect(DEFAULT_CANCELLED_MESSAGE).toContain("{taskDescription}");
   });
 });
 

@@ -665,7 +665,6 @@ describe("loadWorkflowFromDir", () => {
           "roleInstruction: Custom role",
           "advanceReminder: Custom reminder",
           "blockReasonTemplate: Custom block {toolName}",
-          "completionMessage: Custom completion",
           "notDoneReminder: Custom not done",
           "sessionNamePrefix: 'WF: '",
           "sessionNameMaxLength: 30",
@@ -691,7 +690,6 @@ describe("loadWorkflowFromDir", () => {
     expect(result!.roleInstruction).toBe("Custom role");
     expect(result!.advanceReminder).toBe("Custom reminder");
     expect(result!.blockReasonTemplate).toBe("Custom block {toolName}");
-    expect(result!.completionMessage).toBe("Custom completion");
     expect(result!.notDoneReminder).toBe("Custom not done");
     expect(result!.sessionNamePrefix).toBe("WF: ");
     expect(result!.sessionNameMaxLength).toBe(30);

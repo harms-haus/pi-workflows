@@ -160,12 +160,3 @@ export const DEFAULT_NOT_DONE_REMINDER =
   "and call workflow_step to advance.\n\n" +
   "Current phase instructions:\n{phaseInstructions}\n\n" +
   "Continue working on the current phase and call workflow_step when done.";
-
-export const DEFAULT_COMPLETION_MESSAGE =
-  "✅ **{workflowName} Complete**\n\n" +
-  "**Task:** {taskDescription}\n" +
-  "**Task ID:** {taskId}\n" +
-  "**Phases completed:** {phaseCount}";
-
-export const DEFAULT_CANCELLED_MESSAGE =
-  "❌ **{workflowName} Cancelled**\n\n" + "**Task:** {taskDescription}\n" + "**Task ID:** {taskId}";

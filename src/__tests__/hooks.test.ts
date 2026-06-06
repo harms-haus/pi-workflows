@@ -708,8 +708,8 @@ describe("handleBeforeAgentStart", () => {
 // ── handleAgentEnd — completion and cancellation paths ──
 
 describe("handleAgentEnd — normal completion path", () => {
-  it("sends default completion message when workflow finishes normally", () => {
-    const { api, sendMessage } = createMockAPI();
+  it("returns unload mutation and marks completionNotified when workflow reaches DONE", () => {
+    const { api } = createMockAPI();
     const ctx = createMockContext();
     const defs = makeDefinition();
     const state: WorkflowState = {
@@ -729,20 +729,6 @@ describe("handleAgentEnd — normal completion path", () => {
       messages: [mockMsg("stop")],
     });
 
-    // Verify sendMessage called with completion message
-    expect(sendMessage).toHaveBeenCalledWith(
-      {
-        customType: "workflow:complete",
-        content: expect.stringContaining("Test Workflow"),
-        display: true,
-      },
-      { triggerTurn: false },
-    );
-    // Verify content contains resolved template values
-    const callArgs = sendMessage.mock.calls[0]![0] as { content: string };
-    expect(callArgs.content).toContain("Build the thing");
-    expect(callArgs.content).toContain("task-42");
-
     // Verify state mutation is returned (not mutated in place)
     expect(state.completionNotified).toBe(false);
     expect(result).toEqual({
@@ -752,72 +738,11 @@ describe("handleAgentEnd — normal completion path", () => {
     });
     expect(ctx.ui.setStatus).toHaveBeenCalledWith("workflow", undefined);
   });
-
-  it("uses custom completionMessage template from definition", () => {
-    const { api, sendMessage } = createMockAPI();
-    const ctx = createMockContext();
-    const defs: Record<string, WorkflowDefinition> = {
-      "test-wf": {
-        name: "Custom WF",
-        commandName: "test",
-        initialMessage: "Start",
-        completionMessage: "🎉 {workflowName} is done! Task: {taskDescription}",
-        phases: [{ id: "p1", name: "Phase 1", emoji: "🔍", instructions: "Do it" }],
-      },
-    };
-    const state: WorkflowState = {
-      active: false,
-      workflowKey: "test-wf",
-      currentPath: [{ workflowKey: "test-wf", phaseIndex: 0 }],
-      globalStepCount: 1,
-      taskId: "t-99",
-      taskDescription: "Special task",
-      startedAt: Date.now(),
-      completionNotified: false,
-      cancelled: false,
-    };
-
-    handleAgentEnd(api, state, defs, ctx, {
-      type: "agent_end" as const,
-      messages: [mockMsg("stop")],
-    });
-
-    const callArgs = sendMessage.mock.calls[0]![0] as { content: string };
-    expect(callArgs.content).toBe("🎉 Custom WF is done! Task: Special task");
-  });
-
-  it("uses DEFAULT_COMPLETION_MESSAGE when no custom template", () => {
-    const { api, sendMessage } = createMockAPI();
-    const ctx = createMockContext();
-    const defs = makeDefinition();
-    const state: WorkflowState = {
-      active: false,
-      workflowKey: "test-wf",
-      currentPath: [{ workflowKey: "test-wf", phaseIndex: 0 }],
-      globalStepCount: 1,
-      taskId: "t-1",
-      taskDescription: "desc",
-      startedAt: Date.now(),
-      completionNotified: false,
-      cancelled: false,
-    };
-
-    handleAgentEnd(api, state, defs, ctx, {
-      type: "agent_end" as const,
-      messages: [mockMsg("stop")],
-    });
-
-    const callArgs = sendMessage.mock.calls[0]![0] as { content: string };
-    // Should contain the default template markers
-    expect(callArgs.content).toContain("Test Workflow Complete");
-    expect(callArgs.content).toContain("desc");
-    expect(callArgs.content).toContain("t-1");
-  });
 });
 
 describe("handleAgentEnd — cancellation path", () => {
-  it("sends cancelled message when state.cancelled=true", () => {
-    const { api, sendMessage } = createMockAPI();
+  it("returns unload mutation and marks completionNotified for cancelled workflow", () => {
+    const { api } = createMockAPI();
     const ctx = createMockContext();
     const defs = makeDefinition();
     const state: WorkflowState = {
@@ -837,19 +762,6 @@ describe("handleAgentEnd — cancellation path", () => {
       messages: [mockMsg("stop")],
     });
 
-    // Verify cancelled message sent via sendMessage
-    expect(sendMessage).toHaveBeenCalledWith(
-      {
-        customType: "workflow:complete",
-        content: expect.stringContaining("Test Workflow Cancelled"),
-        display: true,
-      },
-      { triggerTurn: false },
-    );
-    const callArgs = sendMessage.mock.calls[0]![0] as { content: string };
-    expect(callArgs.content).toContain("Cancelled task");
-    expect(callArgs.content).toContain("task-55");
-
     // Verify cancelled workflow is persisted and unloaded
     expect(result).toEqual({
       unload: true,
@@ -857,65 +769,6 @@ describe("handleAgentEnd — cancellation path", () => {
       state: { ...state, completionNotified: true },
     });
     expect(ctx.ui.setStatus).toHaveBeenCalledWith("workflow", undefined);
-  });
-
-  it("uses custom completionMessage for cancelled workflow if defined", () => {
-    const { api, sendMessage } = createMockAPI();
-    const ctx = createMockContext();
-    const defs: Record<string, WorkflowDefinition> = {
-      "test-wf": {
-        name: "WF",
-        commandName: "test",
-        initialMessage: "Start",
-        completionMessage: "Custom cancel: {workflowName}",
-        phases: [{ id: "p1", name: "Phase 1", emoji: "🔍", instructions: "Do it" }],
-      },
-    };
-    const state: WorkflowState = {
-      active: false,
-      workflowKey: "test-wf",
-      currentPath: [{ workflowKey: "test-wf", phaseIndex: 0 }],
-      globalStepCount: 1,
-      taskId: "t-1",
-      taskDescription: "desc",
-      startedAt: Date.now(),
-      completionNotified: false,
-      cancelled: true,
-    };
-
-    handleAgentEnd(api, state, defs, ctx, {
-      type: "agent_end" as const,
-      messages: [mockMsg("stop")],
-    });
-
-    const callArgs = sendMessage.mock.calls[0]![0] as { content: string };
-    // Custom completionMessage takes precedence over DEFAULT_CANCELLED_MESSAGE
-    expect(callArgs.content).toBe("Custom cancel: WF");
-  });
-
-  it("uses DEFAULT_CANCELLED_MESSAGE when no custom template and cancelled", () => {
-    const { api, sendMessage } = createMockAPI();
-    const ctx = createMockContext();
-    const defs = makeDefinition();
-    const state: WorkflowState = {
-      active: false,
-      workflowKey: "test-wf",
-      currentPath: [{ workflowKey: "test-wf", phaseIndex: 0 }],
-      globalStepCount: 1,
-      taskId: "t-1",
-      taskDescription: "desc",
-      startedAt: Date.now(),
-      completionNotified: false,
-      cancelled: true,
-    };
-
-    handleAgentEnd(api, state, defs, ctx, {
-      type: "agent_end" as const,
-      messages: [mockMsg("stop")],
-    });
-
-    const callArgs = sendMessage.mock.calls[0]![0] as { content: string };
-    expect(callArgs.content).toContain("Test Workflow Cancelled");
   });
 
   it("sets completionNotified when cancelled", () => {
@@ -933,11 +786,6 @@ describe("handleAgentEnd — cancellation path", () => {
       completionNotified: false,
       cancelled: true,
     };
-
-    handleAgentEnd(api, state, defs, ctx, {
-      type: "agent_end" as const,
-      messages: [mockMsg("stop")],
-    });
 
     // cancelled path returns state with completionNotified = true (not mutated in place)
     const result = handleAgentEnd(api, state, defs, ctx, {
@@ -964,13 +812,13 @@ describe("handleAgentEnd — cancellation path", () => {
       cancelled: true,
     };
 
-    // First call — should send cancel message and return state with completionNotified
+    // First call — no message sent; returns state with completionNotified
     const result1 = handleAgentEnd(api, state, defs, ctx, {
       type: "agent_end" as const,
       messages: [mockMsg("stop")],
     });
     expect(result1.state!.completionNotified).toBe(true);
-    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(sendMessage).not.toHaveBeenCalled();
 
     // Second call with the returned state (e.g. from session_tree reconstruction) — should NOT send again
     const notifiedState = result1.state!;
@@ -978,7 +826,7 @@ describe("handleAgentEnd — cancellation path", () => {
       type: "agent_end" as const,
       messages: [mockMsg("stop")],
     });
-    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(sendMessage).not.toHaveBeenCalled();
   });
 });
 

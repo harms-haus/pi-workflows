@@ -73,7 +73,7 @@ export default function (pi: ExtensionAPI): void {
       const mutation = handleAgentEnd(pi, state, definitions, ctx, event);
       if (mutation.unload) {
         if (mutation.persist && state) {
-          persistState(pi, state);
+          persistState(pi, mutation.state ?? state);
         }
         state = null;
       } else if (mutation.state) {
@@ -96,12 +96,7 @@ export default function (pi: ExtensionAPI): void {
     if (!hasCustomMessages) return undefined;
 
     const filtered = event.messages.filter(
-      (m) =>
-        !(
-          m.role === "custom" &&
-          "customType" in m &&
-          (m.customType === "workflow:complete" || m.customType === "workflow:countdown")
-        ),
+      (m) => !(m.role === "custom" && "customType" in m && m.customType === "workflow:countdown"),
     );
     return { messages: filtered };
   });

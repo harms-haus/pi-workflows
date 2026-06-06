@@ -7,12 +7,7 @@ import type {
 import type { WorkflowState, WorkflowDefinition, HookStateMutation } from "./types";
 import { isSubworkflowRef } from "./types";
 import { resolveActive, isActive, phaseEntryName } from "./state";
-import {
-  buildContextPrompt,
-  DEFAULT_NOT_DONE_REMINDER,
-  DEFAULT_CANCELLED_MESSAGE,
-  DEFAULT_COMPLETION_MESSAGE,
-} from "./prompts";
+import { buildContextPrompt, DEFAULT_NOT_DONE_REMINDER } from "./prompts";
 import { resolveTemplate, getBlockedTools, getWhitelist } from "./config";
 import { timerManager } from "./TimerManager";
 
@@ -146,29 +141,10 @@ function wasAborted(messages: AgentEndEvent["messages"]): boolean {
   return false;
 }
 
-/** Send a completion/cancellation message for the workflow. */
-function sendCompletionMessage(
-  pi: ExtensionAPI,
-  definition: WorkflowDefinition,
-  state: WorkflowState,
-  template: string,
-): void {
-  const msg = resolveTemplate(template, {
-    workflowName: definition.name,
-    taskDescription: state.taskDescription,
-    taskId: state.taskId,
-    phaseCount: String(definition.phases.length),
-  });
-  pi.sendMessage(
-    { customType: "workflow:complete", content: msg, display: true },
-    { triggerTurn: false },
-  );
-}
-
 /** Start a countdown widget that auto-continues after a delay. */
 function startCountdown(pi: ExtensionAPI, ctx: ExtensionContext, reminder: string): void {
   if (ctx.hasUI) {
-    // Capture hasUI flag to guard against stale ctx in callbacks
+    // Capture ui reference to guard against stale ctx in callbacks
     const ui = ctx.ui;
 
     let remaining = 3;
@@ -233,10 +209,6 @@ export function handleAgentEnd(
   if (!state.active && !state.completionNotified) {
     const definition = definitions[state.workflowKey];
     if (!definition) return noOp;
-    const template = state.cancelled
-      ? (definition.completionMessage ?? DEFAULT_CANCELLED_MESSAGE)
-      : (definition.completionMessage ?? DEFAULT_COMPLETION_MESSAGE);
-    sendCompletionMessage(pi, definition, state, template);
     const mutatedState = { ...state, completionNotified: true };
     ctx.ui.setStatus("workflow", undefined);
     return { unload: true, persist: true, state: mutatedState };

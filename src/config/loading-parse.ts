@@ -16,7 +16,6 @@ export interface RawWorkflowYaml {
   roleInstruction?: unknown;
   advanceReminder?: unknown;
   blockReasonTemplate?: unknown;
-  completionMessage?: unknown;
   notDoneReminder?: unknown;
 }
 
@@ -32,7 +31,6 @@ export interface ParsedWorkflow {
   roleInstruction?: string;
   advanceReminder?: string;
   blockReasonTemplate?: string;
-  completionMessage?: string;
   notDoneReminder?: string;
   /** Raw phase entries from the YAML (string filenames or subworkflow ref objects). */
   rawPhases: unknown[];
@@ -108,7 +106,6 @@ function setOptionalFields(raw: RawWorkflowYaml, target: ParsedWorkflow): void {
   if (typeof raw.advanceReminder === "string") target.advanceReminder = raw.advanceReminder;
   if (typeof raw.blockReasonTemplate === "string")
     target.blockReasonTemplate = raw.blockReasonTemplate;
-  if (typeof raw.completionMessage === "string") target.completionMessage = raw.completionMessage;
   if (typeof raw.notDoneReminder === "string") target.notDoneReminder = raw.notDoneReminder;
 }
 

@@ -347,29 +347,18 @@ describe("agent_end handler", () => {
 });
 
 describe("context handler", () => {
-  it("filters out workflow:complete messages", async () => {
-    const { handlers } = initAndGetHandlers();
-    const event = {
-      messages: [
-        { role: "user", content: "hello" },
-        { role: "custom", customType: "workflow:complete", content: "Done!", display: true, timestamp: 1000 },
-        { role: "user", content: "world" },
-      ],
-    };
-
-    const result = await handlers["context"]!(event, {});
-
-    expect(result.messages).toHaveLength(2);
-    expect(result.messages.map((m: { role: string }) => m.role)).toEqual(["user", "user"]);
-    expect(result.messages.every((m: { customType?: string }) => m.customType !== "workflow:complete")).toBe(true);
-  });
-
   it("filters out workflow:countdown messages", async () => {
     const { handlers } = initAndGetHandlers();
     const event = {
       messages: [
         { role: "user", content: "hello" },
-        { role: "custom", customType: "workflow:countdown", content: "3...", display: true, timestamp: 1000 },
+        {
+          role: "custom",
+          customType: "workflow:countdown",
+          content: "3...",
+          display: true,
+          timestamp: 1000,
+        },
         { role: "user", content: "world" },
       ],
     };
@@ -377,14 +366,22 @@ describe("context handler", () => {
     const result = await handlers["context"]!(event, {});
 
     expect(result.messages).toHaveLength(2);
-    expect(result.messages.every((m: { customType?: string }) => m.customType !== "workflow:countdown")).toBe(true);
+    expect(
+      result.messages.every((m: { customType?: string }) => m.customType !== "workflow:countdown"),
+    ).toBe(true);
   });
 
   it("preserves workflow:context messages", async () => {
     const { handlers } = initAndGetHandlers();
     const event = {
       messages: [
-        { role: "custom", customType: "workflow:context", content: "instructions", display: false, timestamp: 1000 },
+        {
+          role: "custom",
+          customType: "workflow:context",
+          content: "instructions",
+          display: false,
+          timestamp: 1000,
+        },
         { role: "user", content: "hello" },
       ],
     };
@@ -407,24 +404,6 @@ describe("context handler", () => {
     const result = await handlers["context"]!(event, {});
 
     expect(result).toBeUndefined();
-  });
-
-  it("filters both workflow:complete and workflow:countdown in same event", async () => {
-    const { handlers } = initAndGetHandlers();
-    const event = {
-      messages: [
-        { role: "user", content: "before" },
-        { role: "custom", customType: "workflow:complete", content: "Done!", display: true, timestamp: 1000 },
-        { role: "user", content: "middle" },
-        { role: "custom", customType: "workflow:countdown", content: "3...", display: true, timestamp: 2000 },
-        { role: "user", content: "after" },
-      ],
-    };
-
-    const result = await handlers["context"]!(event, {});
-
-    expect(result.messages).toHaveLength(3);
-    expect(result.messages.map((m: { role: string; content: string }) => m.content)).toEqual(["before", "middle", "after"]);
   });
 });
 

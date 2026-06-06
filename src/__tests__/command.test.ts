@@ -543,40 +543,6 @@ describe("registerCancelWorkflowCommand", () => {
       expect(ctx.ui.setStatus).toHaveBeenCalledWith("workflow", undefined);
     });
 
-    it("sends cancellation message", async () => {
-      await handler("", ctx);
-
-      expect(mockPI.api.sendMessage).toHaveBeenCalledWith(
-        {
-          customType: "workflow:complete",
-          content: expect.stringContaining("Workflow Cancelled"),
-          display: true,
-        },
-        { triggerTurn: false },
-      );
-    });
-
-    it("includes task description and ID in cancellation message", async () => {
-      await handler("", ctx);
-
-      expect(mockPI.api.sendMessage).toHaveBeenCalledWith(
-        {
-          customType: "workflow:complete",
-          content: expect.stringContaining("my active task"),
-          display: true,
-        },
-        { triggerTurn: false },
-      );
-      expect(mockPI.api.sendMessage).toHaveBeenCalledWith(
-        {
-          customType: "workflow:complete",
-          content: expect.stringContaining("wf-abc123"),
-          display: true,
-        },
-        { triggerTurn: false },
-      );
-    });
-
     it("sets state to null", async () => {
       await handler("", ctx);
 

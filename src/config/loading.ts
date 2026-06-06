@@ -122,8 +122,6 @@ export function loadWorkflowFromDir(
     if (parsed.advanceReminder !== undefined) workflow.advanceReminder = parsed.advanceReminder;
     if (parsed.blockReasonTemplate !== undefined)
       workflow.blockReasonTemplate = parsed.blockReasonTemplate;
-    if (parsed.completionMessage !== undefined)
-      workflow.completionMessage = parsed.completionMessage;
     if (parsed.notDoneReminder !== undefined) workflow.notDoneReminder = parsed.notDoneReminder;
 
     return workflow;

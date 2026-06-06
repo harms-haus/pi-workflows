@@ -35,12 +35,6 @@ export function registerRenderers(pi: ExtensionAPI): void {
     createTextRenderer("🔄 ", "dim", { staticContent: "[Workflow Context injected]" }),
   );
 
-  // Completion message renderer — shows the completion/cancellation message in bold
-  pi.registerMessageRenderer(
-    "workflow:complete",
-    createTextRenderer("", "success", { bold: true }),
-  );
-
   // Countdown shown during the grace period before auto-continue
   pi.registerMessageRenderer("workflow:countdown", createTextRenderer("⏳ ", "dim"));
 }

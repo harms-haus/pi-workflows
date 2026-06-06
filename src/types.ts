@@ -134,11 +134,6 @@ export interface WorkflowDefinition {
    */
   blockReasonTemplate?: string;
   /**
-   * Message sent when workflow reaches DONE state.
-   * Template variables: {workflowName}, {taskDescription}, {taskId}, {phaseCount}.
-   */
-  completionMessage?: string;
-  /**
    * Message shown when the agent tries to finish (agent_end) but the workflow
    * is still active (not DONE).
    * Template variables: {workflowName}, {phaseName}, {phaseEmoji}, {phaseInstructions}.
